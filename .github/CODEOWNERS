@@ -4,5 +4,5 @@
 # the repo. Unless a later match takes precedence,
 # “team-big-data” team members will be requested for
 # review when someone opens a pull request.
-*       
-@Spotinst/team-big-data
+*           @Spotinst/team-bigdata
+/.github/   @Spotinst/team-bigdata-devops
