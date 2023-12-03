@@ -446,26 +446,26 @@ class SessionManager(LoggingConfigurable):
                 conditions.append("%s=?" % column)
     
             query = "SELECT * FROM session WHERE %s" % (" AND ".join(conditions))
-    
+
             self.cursor.execute(query, list(kwargs.values()))
             try:
                 row = self.cursor.fetchone()
             except KeyError:
                 # The kernel is missing, so the session just got deleted.
                 row = None
-    
+
             if row is None:
                 q = []
                 for key, value in kwargs.items():
                     q.append(f"{key}={value!r}")
-    
+
                 raise web.HTTPError(404, "Session not found: %s" % (", ".join(q)))
-    
+
             try:
                 model = await self.row_to_model(row)
             except KeyError as e:
                 raise web.HTTPError(404, "Session not found: %s" % str(e)) from e
-            
+
         return model
 
     async def update_session(self, session_id, **kwargs):
