@@ -240,6 +240,7 @@ class ServerWebApplication(web.Application):
         authorizer=None,
         identity_provider=None,
         kernel_websocket_connection_class=None,
+        local_kernel_websocket_connection_class=None,
     ):
         """Initialize a server web application."""
         if identity_provider is None:
@@ -277,6 +278,7 @@ class ServerWebApplication(web.Application):
             authorizer=authorizer,
             identity_provider=identity_provider,
             kernel_websocket_connection_class=kernel_websocket_connection_class,
+            local_kernel_websocket_connection_class=local_kernel_websocket_connection_class,
         )
         handlers = self.init_handlers(default_services, settings)
 
@@ -301,6 +303,7 @@ class ServerWebApplication(web.Application):
         authorizer=None,
         identity_provider=None,
         kernel_websocket_connection_class=None,
+        local_kernel_websocket_connection_class=None,
     ):
         """Initialize settings for the web application."""
         _template_path = settings_overrides.get(
@@ -383,6 +386,7 @@ class ServerWebApplication(web.Application):
             "identity_provider": identity_provider,
             "event_logger": event_logger,
             "kernel_websocket_connection_class": kernel_websocket_connection_class,
+            "local_kernel_websocket_connection_class": local_kernel_websocket_connection_class,
             # handlers
             "extra_services": extra_services,
             # Jupyter stuff
@@ -1507,12 +1511,24 @@ class ServerApp(JupyterApp):
         help=_i18n("The kernel websocket connection class to use."),
     )
 
+    local_kernel_websocket_connection_class = Type(
+        klass=BaseKernelWebsocketConnection,
+        config=True,
+        help=_i18n("The local kernel websocket connection class to use."),
+    )
+
     @default("kernel_websocket_connection_class")
     def _default_kernel_websocket_connection_class(
         self,
     ) -> t.Union[str, type[ZMQChannelsWebsocketConnection]]:
         if self.gateway_config.gateway_enabled:
             return "jupyter_server.gateway.connections.GatewayWebSocketConnection"
+        return ZMQChannelsWebsocketConnection
+
+    @default("local_kernel_websocket_connection_class")
+    def _default_local_kernel_websocket_connection_class(
+            self,
+    ) -> t.Union[str, type[ZMQChannelsWebsocketConnection]]:
         return ZMQChannelsWebsocketConnection
 
     config_manager_class = Type(
@@ -1885,8 +1901,8 @@ class ServerApp(JupyterApp):
         self.gateway_config = GatewayClient.instance(parent=self)
 
         if not issubclass(
-            self.kernel_manager_class,
-            AsyncMappingKernelManager,
+                self.kernel_manager_class,
+                AsyncMappingKernelManager,
         ):
             warnings.warn(
                 "The synchronous MappingKernelManager class is deprecated and will not be supported in Jupyter Server 3.0",
@@ -1895,8 +1911,8 @@ class ServerApp(JupyterApp):
             )
 
         if not issubclass(
-            self.contents_manager_class,
-            AsyncContentsManager,
+                self.contents_manager_class,
+                AsyncContentsManager,
         ):
             warnings.warn(
                 "The synchronous ContentsManager classes are deprecated and will not be supported in Jupyter Server 3.0",
@@ -1947,8 +1963,8 @@ class ServerApp(JupyterApp):
         identity_provider_kwargs = {"parent": self, "log": self.log}
 
         if (
-            self.login_handler_class is not LoginHandler
-            and self.identity_provider_class is PasswordIdentityProvider
+                self.login_handler_class is not LoginHandler
+                and self.identity_provider_class is PasswordIdentityProvider
         ):
             # default identity provider, non-default LoginHandler
             # this indicates legacy custom LoginHandler config.
@@ -2101,6 +2117,7 @@ class ServerApp(JupyterApp):
             authorizer=self.authorizer,
             identity_provider=self.identity_provider,
             kernel_websocket_connection_class=self.kernel_websocket_connection_class,
+            local_kernel_websocket_connection_class=self.local_kernel_websocket_connection_class,
         )
         if self.certfile:
             self.ssl_options["certfile"] = self.certfile
