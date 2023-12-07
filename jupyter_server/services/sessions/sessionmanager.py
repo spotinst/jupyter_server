@@ -424,37 +424,48 @@ class SessionManager(LoggingConfigurable):
             returns a dictionary that includes all the information from the
             session described by the kwarg.
         """
-        if not kwargs:
-            msg = "must specify a column to query"
-            raise TypeError(msg)
-
-        conditions = []
-        for column in kwargs:
-            if column not in self._columns:
-                msg = f"No such column: {column}"
+        session_id = kwargs["session_id"]
+        if self.fut_kernel_id_dict is not None and session_id in self.fut_kernel_id_dict:
+            model = {
+                "id": session_id,
+                "name": "Waiting for kernel to start",
+                "last_activity": None,
+                "execution_state": "waiting",
+                "connections": 0,
+            }
+        else:
+            if not kwargs:
+                msg = "must specify a column to query"
                 raise TypeError(msg)
-            conditions.append("%s=?" % column)
 
-        query = "SELECT * FROM session WHERE %s" % (" AND ".join(conditions))
+            conditions = []
+            for column in kwargs:
+                if column not in self._columns:
+                    msg = f"No such column: {column}"
+                    raise TypeError(msg)
+                conditions.append("%s=?" % column)
 
-        self.cursor.execute(query, list(kwargs.values()))
-        try:
-            row = self.cursor.fetchone()
-        except KeyError:
-            # The kernel is missing, so the session just got deleted.
-            row = None
+            query = "SELECT * FROM session WHERE %s" % (" AND ".join(conditions))
 
-        if row is None:
-            q = []
-            for key, value in kwargs.items():
-                q.append(f"{key}={value!r}")
+            self.cursor.execute(query, list(kwargs.values()))
+            try:
+                row = self.cursor.fetchone()
+            except KeyError:
+                # The kernel is missing, so the session just got deleted.
+                row = None
 
-            raise web.HTTPError(404, "Session not found: %s" % (", ".join(q)))
+            if row is None:
+                q = []
+                for key, value in kwargs.items():
+                    q.append(f"{key}={value!r}")
 
-        try:
-            model = await self.row_to_model(row)
-        except KeyError as e:
-            raise web.HTTPError(404, "Session not found: %s" % str(e)) from e
+                raise web.HTTPError(404, "Session not found: %s" % (", ".join(q)))
+
+            try:
+                model = await self.row_to_model(row)
+            except KeyError as e:
+                raise web.HTTPError(404, "Session not found: %s" % str(e)) from e
+
         return model
 
     async def update_session(self, session_id, **kwargs):
