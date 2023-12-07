@@ -39,6 +39,7 @@ class GatewayMappingKernelManager(AsyncMappingKernelManager):
 
     # We'll maintain our own set of kernel ids
     _kernels: dict[str, GatewayKernelManager] = {}  # type:ignore[assignment]
+    _local_kernels: dict[str, ServerKernelManager] = {}
 
     @default("kernel_manager_class")
     def _default_kernel_manager_class(self):
@@ -75,20 +76,24 @@ class GatewayMappingKernelManager(AsyncMappingKernelManager):
             The API path (unicode, '/' delimited) for the cwd.
             Will be transformed to an OS path relative to root_dir.
         """
-        self.log.info(f"Request start kernel: kernel_id={kernel_id}, path='{path}'")
-
-        if kernel_id is None and path is not None:
-            kwargs["cwd"] = self.cwd_for_path(path)
-
-        km = self.kernel_manager_factory(parent=self, log=self.log)
-        await km.start_kernel(kernel_id=kernel_id, **kwargs)
-        kernel_id = km.kernel_id
-        self._kernels[kernel_id] = km
-        # Initialize culling if not already
-        if not self._initialized_culler:
-            self.initialize_culler()
-
-        return kernel_id
+        if kwargs.get("kernel_name") == 'python3':
+            kernel_id = await super().start_kernel(kernel_id=kernel_id, path=path, **kwargs)
+            self._local_kernels[kernel_id] = self._kernels[kernel_id]
+            return kernel_id
+        else:
+            self.log.info(f"Request start kernel: kernel_id={kernel_id}, path='{path}'")
+    
+            if kernel_id is None and path is not None:
+                kwargs["cwd"] = self.cwd_for_path(path)
+    
+            km = self.kernel_manager_factory(parent=self, log=self.log)
+            await km.start_kernel(kernel_id=kernel_id, **kwargs)
+            kernel_id = km.kernel_id
+            self._kernels[kernel_id] = km
+            # Initialize culling if not already
+            if not self._initialized_culler:
+                self.initialize_culler()
+            return kernel_id
 
     async def kernel_model(self, kernel_id):
         """Return a dictionary of kernel information described in the
@@ -99,11 +104,14 @@ class GatewayMappingKernelManager(AsyncMappingKernelManager):
         kernel_id : uuid
             The uuid of the kernel.
         """
-        model = None
-        km = self.get_kernel(str(kernel_id))
-        if km:  # type:ignore[truthy-bool]
-            model = km.kernel  # type:ignore[attr-defined]
-        return model
+        if kernel_id in self._local_kernels:
+            return super().kernel_model(kernel_id)
+        else:
+            model = None
+            km = self.get_kernel(str(kernel_id))
+            if km:  # type:ignore[truthy-bool]
+                model = km.kernel  # type:ignore[attr-defined]
+            return model
 
     async def list_kernels(self, **kwargs):
         """Get a list of running kernels from the Gateway server.
