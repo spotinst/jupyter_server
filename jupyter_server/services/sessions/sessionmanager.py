@@ -437,14 +437,14 @@ class SessionManager(LoggingConfigurable):
             if not kwargs:
                 msg = "must specify a column to query"
                 raise TypeError(msg)
-    
+
             conditions = []
             for column in kwargs:
                 if column not in self._columns:
                     msg = f"No such column: {column}"
                     raise TypeError(msg)
                 conditions.append("%s=?" % column)
-    
+
             query = "SELECT * FROM session WHERE %s" % (" AND ".join(conditions))
 
             self.cursor.execute(query, list(kwargs.values()))
