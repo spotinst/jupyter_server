@@ -1901,8 +1901,8 @@ class ServerApp(JupyterApp):
         self.gateway_config = GatewayClient.instance(parent=self)
 
         if not issubclass(
-                self.kernel_manager_class,
-                AsyncMappingKernelManager,
+            self.kernel_manager_class,
+            AsyncMappingKernelManager,
         ):
             warnings.warn(
                 "The synchronous MappingKernelManager class is deprecated and will not be supported in Jupyter Server 3.0",
@@ -1911,8 +1911,8 @@ class ServerApp(JupyterApp):
             )
 
         if not issubclass(
-                self.contents_manager_class,
-                AsyncContentsManager,
+            self.contents_manager_class,
+            AsyncContentsManager,
         ):
             warnings.warn(
                 "The synchronous ContentsManager classes are deprecated and will not be supported in Jupyter Server 3.0",
@@ -1963,8 +1963,8 @@ class ServerApp(JupyterApp):
         identity_provider_kwargs = {"parent": self, "log": self.log}
 
         if (
-                self.login_handler_class is not LoginHandler
-                and self.identity_provider_class is PasswordIdentityProvider
+            self.login_handler_class is not LoginHandler
+            and self.identity_provider_class is PasswordIdentityProvider
         ):
             # default identity provider, non-default LoginHandler
             # this indicates legacy custom LoginHandler config.
