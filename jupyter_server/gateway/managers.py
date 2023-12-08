@@ -500,7 +500,7 @@ class GatewayKernelManager(ServerKernelManager):
             self.kernel_id = kernel_id
             self.kernel_url = url_path_join(self.kernels_url, url_escape(str(self.kernel_id)))
             self.kernel = await self.refresh_model()
-            return super().start_kernel(**kwargs)
+            await super().start_kernel(**kwargs)
 
         if kernel_id is None:
             kernel_name = kwargs.get("kernel_name", "python3")
