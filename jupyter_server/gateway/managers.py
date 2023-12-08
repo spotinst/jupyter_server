@@ -33,13 +33,13 @@ from ..services.sessions.sessionmanager import SessionManager
 from ..utils import url_path_join
 from .gateway_client import GatewayClient, gateway_request
 
+_local_kernels: dict[str, ServerKernelManager] = {}
 
 class GatewayMappingKernelManager(AsyncMappingKernelManager):
     """Kernel manager that supports remote kernels hosted by Jupyter Kernel or Enterprise Gateway."""
 
     # We'll maintain our own set of kernel ids
     _kernels: dict[str, GatewayKernelManager] = {}  # type:ignore[assignment]
-    _local_kernels: dict[str, ServerKernelManager] = {}
 
     @default("kernel_manager_class")
     def _default_kernel_manager_class(self):
@@ -77,8 +77,9 @@ class GatewayMappingKernelManager(AsyncMappingKernelManager):
             Will be transformed to an OS path relative to root_dir.
         """
         if kwargs.get("kernel_name") == 'python3':
+            kwargs["local"] = True
             kernel_id = await super().start_kernel(kernel_id=kernel_id, path=path, **kwargs)
-            self._local_kernels[kernel_id] = self._kernels[kernel_id]
+            _local_kernels[kernel_id] = self._kernels[kernel_id]
             return kernel_id
         else:
             self.log.info(f"Request start kernel: kernel_id={kernel_id}, path='{path}'")
@@ -104,8 +105,10 @@ class GatewayMappingKernelManager(AsyncMappingKernelManager):
         kernel_id : uuid
             The uuid of the kernel.
         """
-        if kernel_id in self._local_kernels:
-            return super().kernel_model(kernel_id)
+        if kernel_id in _local_kernels:
+            model = super().kernel_model(kernel_id)
+            _local_kernels[str(kernel_id)] = model
+            return model
         else:
             model = None
             km = self.get_kernel(str(kernel_id))
@@ -442,19 +445,22 @@ class GatewayKernelManager(ServerKernelManager):
             model is fetched from the Gateway server.
         """
         if model is None:
-            self.log.debug("Request kernel at: %s" % self.kernel_url)
-            try:
-                response = await gateway_request(self.kernel_url, method="GET")
-
-            except web.HTTPError as error:
-                if error.status_code == 404:
-                    self.log.warning("Kernel not found at: %s" % self.kernel_url)
-                    model = None
-                else:
-                    raise
+            if self.kernel_id in _local_kernels:
+                model = _local_kernels[self.kernel_id]
             else:
-                model = json_decode(response.body)
-            self.log.debug("Kernel retrieved: %s" % model)
+                self.log.debug("Request kernel at: %s" % self.kernel_url)
+                try:
+                    response = await gateway_request(self.kernel_url, method="GET")
+    
+                except web.HTTPError as error:
+                    if error.status_code == 404:
+                        self.log.warning("Kernel not found at: %s" % self.kernel_url)
+                        model = None
+                    else:
+                        raise
+                else:
+                    model = json_decode(response.body)
+                self.log.debug("Kernel retrieved: %s" % model)
 
         if model:  # Update activity markers
             self.last_activity = datetime.datetime.strptime(
@@ -488,6 +494,13 @@ class GatewayKernelManager(ServerKernelManager):
              and launching the kernel (e.g. Popen kwargs).
         """
         kernel_id = kwargs.get("kernel_id")
+
+        if "local" in kwargs:
+            kwargs.pop("local")
+            self.kernel_id = kernel_id
+            self.kernel_url = url_path_join(self.kernels_url, url_escape(str(self.kernel_id)))
+            self.kernel = await self.refresh_model()
+            return await super().start_kernel(**kwargs)
 
         if kernel_id is None:
             kernel_name = kwargs.get("kernel_name", "python3")

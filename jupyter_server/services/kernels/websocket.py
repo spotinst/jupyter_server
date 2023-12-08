@@ -49,7 +49,7 @@ class KernelWebsocketHandler(WebSocketMixin, WebSocketHandler, JupyterHandler): 
             raise web.HTTPError(403)
 
         kernel = self.kernel_manager.get_kernel(self.kernel_id)
-        if kernel.kernel_name == "python3":
+        if kernel.kernel is not None and kernel.kernel['name'] == "python3":
             self.connection = self.local_kernel_websocket_connection_class(
                 parent=kernel, websocket_handler=self, config=self.config
             )
