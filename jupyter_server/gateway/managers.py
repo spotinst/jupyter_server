@@ -85,7 +85,8 @@ class GatewayMappingKernelManager(AsyncMappingKernelManager):
       startup_file = f"/tmp/{app}.py"
       if kernel_name.startswith('sc-'):
         startup_content = """from pyspark.sql import SparkSession
-spark = SparkSession.builder.appName('{kernel_name}').remote('sc://{app}-svc.spark-apps.cluster.local').getOrCreate()"""
+spark = SparkSession.builder.appName('{kernel_name}').remote('sc://{app}-svc.spark-apps.cluster.local').getOrCreate()
+"""
         env["PYTHONSTARTUP"] = startup_file
         with open(startup_file, "w") as f:
           f.write(startup_content)
