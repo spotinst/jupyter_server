@@ -40,11 +40,13 @@ class KernelWebsocketHandler(WebSocketMixin, WebSocketHandler, JupyterHandler): 
   async def pre_get(self):
     """Handle a pre_get."""
     # authenticate first
+    self.log.warning("USER!!!")
     user = self.current_user
     if user is None:
       self.log.warning("Couldn't authenticate WebSocket connection")
       raise web.HTTPError(403)
 
+    self.log.warning("AUTH!!!")
     # authorize the user.
     authorized = await ensure_async(
       self.authorizer.is_authorized(self, user, "execute", "kernels")
@@ -52,16 +54,20 @@ class KernelWebsocketHandler(WebSocketMixin, WebSocketHandler, JupyterHandler): 
     if not authorized:
       raise web.HTTPError(403)
 
+    self.log.warning("KERNEL!!!")
     kernel = self.kernel_manager.get_kernel(self.kernel_id)
+    self.log.warning("CHECK!!!")
     if kernel.kernel_name == "python3" and (not hasattr(kernel,"kernel") \
                                             or kernel.kernel is None \
                                             or kernel.kernel["name"] is None \
                                             or kernel.kernel["name"] == "python3" \
                                             or kernel.kernel["name"].startswith("sc-")):
+      self.log.warning("INNER!!!")
       self.connection = self.local_kernel_websocket_connection_class(
         parent=kernel, websocket_handler=self, config=self.config
       )
     else:
+      self.log.warning("OUTER!!!")
       self.connection = self.kernel_websocket_connection_class(
         parent=kernel, websocket_handler=self, config=self.config
       )
