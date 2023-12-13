@@ -7,25 +7,17 @@ import warnings
 class ExtensionLoadingError(Exception):
     """An extension loading error."""
 
-    pass
-
 
 class ExtensionMetadataError(Exception):
     """An extension metadata error."""
-
-    pass
 
 
 class ExtensionModuleNotFound(Exception):
     """An extension module not found error."""
 
-    pass
-
 
 class NotAnExtensionApp(Exception):
     """An error raised when a module is not an extension."""
-
-    pass
 
 
 def get_loader(obj, logger=None):
@@ -36,12 +28,12 @@ def get_loader(obj, logger=None):
     underscore prefix.
     """
     try:
-        return getattr(obj, "_load_jupyter_server_extension")  # noqa B009
+        return obj._load_jupyter_server_extension
     except AttributeError:
         pass
 
     try:
-        func = getattr(obj, "load_jupyter_server_extension")  # noqa B009
+        func = obj.load_jupyter_server_extension
     except AttributeError:
         msg = "_load_jupyter_server_extension function was not found."
         raise ExtensionLoadingError(msg) from None
@@ -76,7 +68,8 @@ def get_metadata(package_name, logger=None):
     # each module took to import. This makes it much easier for users to report
     # slow loading modules upstream, as slow loading modules will block server startup
     if logger:
-        logger.info(f"Package {package_name} took {duration:.4f}s to import")
+        log = logger.info if duration > 0.1 else logger.debug
+        log(f"Extension package {package_name} took {duration:.4f}s to import")
 
     try:
         return module, module._jupyter_server_extension_points()
