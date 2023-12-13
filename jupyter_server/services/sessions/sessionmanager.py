@@ -282,10 +282,10 @@ class SessionManager(LoggingConfigurable):
     """
 
     if session_id is not None and self.fut_kernel_id_dict is None:
-        self.fut_kernel_id_dict = {}
+      self.fut_kernel_id_dict = {}
 
     if session_id is None or session_id == "":
-        session_id = self.new_session_id()
+      session_id = self.new_session_id()
 
     record = KernelSessionRecord(session_id=session_id)
     self._pending_sessions.update(record)
@@ -351,16 +351,16 @@ class SessionManager(LoggingConfigurable):
       if session_id in self.fut_kernel_id_dict:
         fut_kernel_id = self.fut_kernel_id_dict[session_id]
         if fut_kernel_id.done():
-            kernel_id = await fut_kernel_id
-            self.fut_kernel_id_dict.pop(session_id)
-            return kernel_id
+          kernel_id = await fut_kernel_id
+          self.fut_kernel_id_dict.pop(session_id)
+          return kernel_id
       else:
         kernel_path = await ensure_async(self.contents_manager.get_kernel_path(path=path))
         kernel_env = self.get_kernel_env(path)
         self.fut_kernel_id_dict[session_id] = asyncio.create_task(self.kernel_manager.start_kernel(
-            path=kernel_path,
-            kernel_name=kernel_name,
-            env=kernel_env,
+          path=kernel_path,
+          kernel_name=kernel_name,
+          env=kernel_env,
         ))
       kernel_id = "waiting"
     else:
