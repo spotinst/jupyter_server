@@ -3,6 +3,7 @@
 # Distributed under the terms of the Modified BSD License.
 from __future__ import annotations
 
+import contextvars
 import functools
 import inspect
 import ipaddress
@@ -22,6 +23,7 @@ from jinja2 import TemplateNotFound
 from jupyter_core.paths import is_hidden
 from jupyter_events import EventLogger
 from tornado import web
+from tornado.httputil import HTTPServerRequest
 from tornado.log import app_log
 from traitlets.config import Application
 
@@ -54,6 +56,7 @@ if TYPE_CHECKING:
     from jupyter_server.services.kernels.kernelmanager import AsyncMappingKernelManager
     from jupyter_server.services.sessions.sessionmanager import SessionManager
 
+_current_request_var: contextvars.ContextVar[HTTPServerRequest] = contextvars.ContextVar("current_request")
 # -----------------------------------------------------------------------------
 # Top-level handlers
 # -----------------------------------------------------------------------------
@@ -79,6 +82,9 @@ def log() -> Logger:
 
 class AuthenticatedHandler(web.RequestHandler):
     """A RequestHandler with an authenticated user."""
+
+    def prepare(self):
+        _current_request_var.set(self.request)
 
     @property
     def base_url(self) -> str:
@@ -588,7 +594,7 @@ class JupyterHandler(AuthenticatedHandler):
             )
         return allow
 
-    async def prepare(self) -> Awaitable[None] | None:  # type:ignore[override]
+    async def prepare(self):
         """Prepare a response."""
         # Set the current Jupyter Handler context variable.
         CallContext.set(CallContext.JUPYTER_HANDLER, self)
@@ -1135,6 +1141,11 @@ class PrometheusMetricsHandler(JupyterHandler):
         self.set_header("Content-Type", prometheus_client.CONTENT_TYPE_LATEST)
         self.write(prometheus_client.generate_latest(prometheus_client.REGISTRY))
 
+def get_current_request():
+    """
+    Get :class:`tornado.httputil.HTTPServerRequest` that is currently being processed.
+    """
+    return _current_request_var.get(None)
 
 # -----------------------------------------------------------------------------
 # URL pattern fragments for reuse
