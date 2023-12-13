@@ -22,6 +22,11 @@ class KernelWebsocketHandler(WebSocketMixin, WebSocketHandler, JupyterHandler): 
     """The kernel websocket connection class."""
     return self.settings.get("kernel_websocket_connection_class")
 
+  @property
+  def local_kernel_websocket_connection_class(self):
+    """The kernel websocket connection class."""
+    return self.settings.get("local_kernel_websocket_connection_class")
+
   def set_default_headers(self):
     """Undo the set_default_headers in JupyterHandler
 
@@ -48,9 +53,18 @@ class KernelWebsocketHandler(WebSocketMixin, WebSocketHandler, JupyterHandler): 
       raise web.HTTPError(403)
 
     kernel = self.kernel_manager.get_kernel(self.kernel_id)
-    self.connection = self.kernel_websocket_connection_class(
-      parent=kernel, websocket_handler=self, config=self.config
-    )
+    if kernel.kernel_name == "python3" and (not hasattr(kernel,"kernel")
+                                            or kernel.kernel is None
+                                            or kernel.kernel["name"] is None
+                                            or kernel.kernel["name"] == "python3"
+                                            or kernel.kernel["name"].startswith("sc-")):
+      self.connection = self.local_kernel_websocket_connection_class(
+        parent=kernel, websocket_handler=self, config=self.config
+      )
+    else:
+      self.connection = self.kernel_websocket_connection_class(
+        parent=kernel, websocket_handler=self, config=self.config
+      )
 
     if self.get_argument("session_id", None):
       self.connection.session.session = self.get_argument("session_id")
