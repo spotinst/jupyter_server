@@ -372,7 +372,7 @@ class SessionManager(LoggingConfigurable):
                 kernel_name=kernel_name,
                 env=kernel_env,
             )
-            return cast(str, kernel_id)
+        return cast(str, kernel_id)
 
     async def save_session(self, session_id, path=None, name=None, type=None, kernel_id=None):
         """Saves the items for the session with the given session_id
