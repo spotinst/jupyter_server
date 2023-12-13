@@ -215,14 +215,14 @@ class SessionManager(LoggingConfigurable):
 
   @property
   def cursor(self):
-      """Start a cursor and create a database called 'session'"""
-      if self._cursor is None:
-          self._cursor = self.connection.cursor()
-          self._cursor.execute(
-            """CREATE TABLE IF NOT EXISTS session
-            (session_id, path, name, type, kernel_id)"""
-          )
-      return self._cursor
+    """Start a cursor and create a database called 'session'"""
+    if self._cursor is None:
+      self._cursor = self.connection.cursor()
+      self._cursor.execute(
+        """CREATE TABLE IF NOT EXISTS session
+        (session_id, path, name, type, kernel_id)"""
+      )
+    return self._cursor
 
   @property
   def connection(self):
