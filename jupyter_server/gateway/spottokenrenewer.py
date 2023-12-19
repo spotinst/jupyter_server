@@ -29,8 +29,11 @@ class SpotTokenRenewer(GatewayTokenRenewerBase): # type:ignore[misc]
     ) -> str:
         request = jupyter_server.base.handlers.get_current_request()
         if request is None:
-            logging.error("Could not get current request")
-            return auth_token
+            logging.info("Could not get current request from base handler")
+            request = jupyter_server.services.sessions.handlers.SessionRootHandler.get_current_request()
+            if request is None:
+                logging.error("Could not get current request")
+                return auth_token
 
         auth_header_value = get_header_value(request, auth_header_key)
         if auth_header_value:
