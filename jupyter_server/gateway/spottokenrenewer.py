@@ -1,7 +1,7 @@
 import typing as ty
 
 import logging
-from jupyter_server.gateway.gateway_client import GatewayTokenRenewerBase
+from jupyter_server.gateway.gateway_client import GatewayTokenRenewerBase, GatewayTokenRenewerMeta
 import jupyter_server.base.handlers
 import jupyter_server.serverapp
 
@@ -11,14 +11,14 @@ def get_header_value(request: ty.Any, header: str) -> str:
         logging.error(f'Header "{header}" is missing')
         return ""
     logging.debug(f'Getting value from header "{header}"')
-    value = request.headers[header]
+    value: str = request.headers[header]
     if len(value) == 0:
         logging.error(f'Header "{header}" is empty')
         return ""
     return value
 
 
-class SpotTokenRenewer(GatewayTokenRenewerBase):
+class SpotTokenRenewer(GatewayTokenRenewerBase): # type:ignore[misc]
 
     def get_token(
             self,

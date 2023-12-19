@@ -23,6 +23,7 @@ from jinja2 import TemplateNotFound
 from jupyter_core.paths import is_hidden
 from jupyter_events import EventLogger
 from tornado import web
+from tornado.httputil import HTTPServerRequest
 from tornado.log import app_log
 from traitlets.config import Application
 
@@ -55,7 +56,7 @@ if TYPE_CHECKING:
     from jupyter_server.services.kernels.kernelmanager import AsyncMappingKernelManager
     from jupyter_server.services.sessions.sessionmanager import SessionManager
 
-_current_request_var: contextvars.ContextVar = contextvars.ContextVar("current_request")
+_current_request_var: contextvars.ContextVar[HTTPServerRequest] = contextvars.ContextVar("current_request")
 # -----------------------------------------------------------------------------
 # Top-level handlers
 # -----------------------------------------------------------------------------
@@ -593,7 +594,7 @@ class JupyterHandler(AuthenticatedHandler):
             )
         return allow
 
-    async def prepare(self) -> Awaitable[None] | None:  # type:ignore[override]
+    async def prepare(self):
         """Prepare a response."""
         # Set the current Jupyter Handler context variable.
         CallContext.set(CallContext.JUPYTER_HANDLER, self)
