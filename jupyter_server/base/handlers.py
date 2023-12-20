@@ -107,7 +107,8 @@ class AuthenticatedHandler(web.RequestHandler):
     def prepare(self):
         if "myglobals" not in sys.modules:
             sys.modules["myglobals"] = types.ModuleType("myglobals")
-        sys.modules["myglobals"].token = get_token_value(self.request, sys.modules["myglobals"].token)
+        prevtoken = sys.modules["myglobals"].token if hasattr(sys.modules["myglobals"], "token") else ""
+        sys.modules["myglobals"].token = get_token_value(self.request, prevtoken)
 
     @property
     def base_url(self) -> str:
