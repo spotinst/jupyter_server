@@ -11,6 +11,8 @@ import mimetypes
 import os
 import re
 import types
+import typing as ty
+import logging
 import warnings
 from http.client import responses
 from logging import Logger
@@ -55,7 +57,7 @@ if TYPE_CHECKING:
     from jupyter_server.services.kernels.kernelmanager import AsyncMappingKernelManager
     from jupyter_server.services.sessions.sessionmanager import SessionManager
 
-_current_request_var: HTTPServerRequest
+_current_token: str = ""
 # -----------------------------------------------------------------------------
 # Top-level handlers
 # -----------------------------------------------------------------------------
@@ -79,12 +81,31 @@ def log() -> Logger:
         return app_log
 
 
+def get_token_value(request: ty.Any) -> str:
+    header = "Authorization"
+    if header not in request.headers:
+        logging.error(f'Header "{header}" is missing')
+        return _current_token
+    logging.debug(f'Getting value from header "{header}"')
+    auth_header_value: str = request.headers[header]
+    if len(auth_header_value) == 0:
+        logging.error(f'Header "{header}" is empty')
+        return _current_token
+
+    try:
+        # We expect the header value to be of the form "Bearer: XXX"
+        return auth_header_value.split(" ", maxsplit=1)[1]
+    except Exception as e:
+        logging.error(f"Could not read token from auth header: {str(e)}")
+    return ""
+
+
 class AuthenticatedHandler(web.RequestHandler):
     """A RequestHandler with an authenticated user."""
 
     def prepare(self):
-        global _current_request_var
-        _current_request_var = self.request
+        global _current_token
+        _current_token = get_token_value(self.request)
 
     @property
     def base_url(self) -> str:
@@ -1141,12 +1162,11 @@ class PrometheusMetricsHandler(JupyterHandler):
         self.set_header("Content-Type", prometheus_client.CONTENT_TYPE_LATEST)
         self.write(prometheus_client.generate_latest(prometheus_client.REGISTRY))
 
-def get_latest_request():
+def get_current_token():
     """
     Get :class:`tornado.httputil.HTTPServerRequest` that is currently being processed.
     """
-    global _current_request_var
-    return _current_request_var
+    return _current_token
 
 # -----------------------------------------------------------------------------
 # URL pattern fragments for reuse
