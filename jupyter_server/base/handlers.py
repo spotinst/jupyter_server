@@ -97,7 +97,7 @@ def get_token_value(request: ty.Any) -> str:
         return auth_header_value.split(" ", maxsplit=1)[1]
     except Exception as e:
         logging.error(f"Could not read token from auth header: {str(e)}")
-    return ""
+    return _current_token
 
 
 class AuthenticatedHandler(web.RequestHandler):
