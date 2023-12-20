@@ -27,13 +27,10 @@ class SpotTokenRenewer(GatewayTokenRenewerBase): # type:ignore[misc]
             auth_token: str,
             **kwargs: ty.Any,
     ) -> str:
-        request = jupyter_server.base.handlers.get_current_request()
+        request = jupyter_server.base.handlers.get_latest_request()
         if request is None:
-            logging.info("Could not get current request from base handler")
-            request = jupyter_server.services.sessions.handlers.SessionRootHandler.get_current_request()
-            if request is None:
-                logging.error("Could not get current request")
-                return auth_token
+            logging.error("Could not get current request")
+            return auth_token
 
         auth_header_value = get_header_value(request, auth_header_key)
         if auth_header_value:
@@ -43,4 +40,5 @@ class SpotTokenRenewer(GatewayTokenRenewerBase): # type:ignore[misc]
             except Exception as e:
                 logging.error(f"Could not read token from auth header: {str(e)}")
 
+        logging.info("Auth token refreshed")
         return auth_token
