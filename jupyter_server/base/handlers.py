@@ -57,7 +57,6 @@ if TYPE_CHECKING:
     from jupyter_server.services.kernels.kernelmanager import AsyncMappingKernelManager
     from jupyter_server.services.sessions.sessionmanager import SessionManager
 
-_current_token: str = ""
 # -----------------------------------------------------------------------------
 # Top-level handlers
 # -----------------------------------------------------------------------------
@@ -85,12 +84,12 @@ def get_token_value(request: ty.Any) -> str:
     header = "Authorization"
     if header not in request.headers:
         logging.error(f'Header "{header}" is missing')
-        return _current_token
+        return AuthenticatedHandler.current_token
     logging.debug(f'Getting value from header "{header}"')
     auth_header_value: str = request.headers[header]
     if len(auth_header_value) == 0:
         logging.error(f'Header "{header}" is empty')
-        return _current_token
+        return AuthenticatedHandler.current_token
 
     try:
         logging.info(f"Auth header value: {auth_header_value}")
@@ -98,18 +97,16 @@ def get_token_value(request: ty.Any) -> str:
         return auth_header_value.split(" ", maxsplit=1)[1]
     except Exception as e:
         logging.error(f"Could not read token from auth header: {str(e)}")
-    
-    return _current_token
+
+    return AuthenticatedHandler.current_token
 
 
 class AuthenticatedHandler(web.RequestHandler):
     """A RequestHandler with an authenticated user."""
+    current_token: str = ""
 
     def prepare(self):
-        global _current_token
-        pid = os.getpid()
-        logging.info(f"Auth token value: {_current_token} for pid: {pid}")
-        _current_token = get_token_value(self.request)
+        AuthenticatedHandler.current_token = get_token_value(self.request)
 
     @property
     def base_url(self) -> str:
@@ -1170,9 +1167,7 @@ def get_current_token():
     """
     Get :class:`tornado.httputil.HTTPServerRequest` that is currently being processed.
     """
-    pid = os.getpid()
-    logging.info(f"get_current_token: {_current_token} {pid}")
-    return _current_token
+    return AuthenticatedHandler.current_token
 
 # -----------------------------------------------------------------------------
 # URL pattern fragments for reuse
