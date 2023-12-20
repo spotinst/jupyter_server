@@ -10,6 +10,7 @@ import json
 import mimetypes
 import os
 import re
+import sys
 import types
 import typing as ty
 import logging
@@ -80,16 +81,16 @@ def log() -> Logger:
         return app_log
 
 
-def get_token_value(request: ty.Any) -> str:
+def get_token_value(request: ty.Any, prev: str) -> str:
     header = "Authorization"
     if header not in request.headers:
         logging.error(f'Header "{header}" is missing')
-        return AuthenticatedHandler.current_token
+        return prev
     logging.debug(f'Getting value from header "{header}"')
     auth_header_value: str = request.headers[header]
     if len(auth_header_value) == 0:
         logging.error(f'Header "{header}" is empty')
-        return AuthenticatedHandler.current_token
+        return prev
 
     try:
         logging.info(f"Auth header value: {auth_header_value}")
@@ -98,15 +99,15 @@ def get_token_value(request: ty.Any) -> str:
     except Exception as e:
         logging.error(f"Could not read token from auth header: {str(e)}")
 
-    return AuthenticatedHandler.current_token
+    return prev
 
 
 class AuthenticatedHandler(web.RequestHandler):
     """A RequestHandler with an authenticated user."""
-    current_token: str = ""
-
     def prepare(self):
-        AuthenticatedHandler.current_token = get_token_value(self.request)
+        if sys.modules["myglobals"] is None:
+            sys.modules["myglobals"] = types.ModuleType("myglobals")
+        sys.modules["myglobals"].token = get_token_value(self.request, sys.modules["myglobals"].token)
 
     @property
     def base_url(self) -> str:
@@ -1167,7 +1168,7 @@ def get_current_token():
     """
     Get :class:`tornado.httputil.HTTPServerRequest` that is currently being processed.
     """
-    return AuthenticatedHandler.current_token
+    return sys.modules["myglobals"].token
 
 # -----------------------------------------------------------------------------
 # URL pattern fragments for reuse
