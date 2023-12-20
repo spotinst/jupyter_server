@@ -105,7 +105,7 @@ def get_token_value(request: ty.Any, prev: str) -> str:
 class AuthenticatedHandler(web.RequestHandler):
     """A RequestHandler with an authenticated user."""
     def prepare(self):
-        if sys.modules["myglobals"] is None:
+        if "myglobals" not in sys.modules:
             sys.modules["myglobals"] = types.ModuleType("myglobals")
         sys.modules["myglobals"].token = get_token_value(self.request, sys.modules["myglobals"].token)
 
