@@ -83,6 +83,7 @@ class AuthenticatedHandler(web.RequestHandler):
     """A RequestHandler with an authenticated user."""
 
     def prepare(self):
+        global _current_request_var
         _current_request_var = self.request
 
     @property
@@ -1144,6 +1145,7 @@ def get_latest_request():
     """
     Get :class:`tornado.httputil.HTTPServerRequest` that is currently being processed.
     """
+    global _current_request_var
     return _current_request_var
 
 # -----------------------------------------------------------------------------
