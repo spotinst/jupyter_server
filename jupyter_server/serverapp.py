@@ -197,13 +197,13 @@ DEFAULT_SERVER_PORT = DEFAULT_JUPYTER_SERVER_PORT
 def random_ports(port: int, n: int) -> t.Generator[int, None, None]:
   """Generate a list of n random ports near the given port.
 
-  The first 5 ports will be sequential, and the remaining n-5 will be
-  randomly selected in the range [port-2*n, port+2*n].
-  """
-  for i in range(min(5, n)):
-    yield port + i
-  for _ in range(n - 5):
-    yield max(1, port + random.randint(-2 * n, 2 * n))
+    The first 5 ports will be sequential, and the remaining n-5 will be
+    randomly selected in the range [port-2*n, port+2*n].
+    """
+    for i in range(min(5, n)):
+        yield port + i
+    for _ in range(n - 5):
+        yield max(1, port + random.randint(-2 * n, 2 * n))
 
 
 def load_handlers(name: str) -> t.Any:
@@ -311,13 +311,13 @@ class ServerWebApplication(web.Application):
       _template_path = (_template_path,)
     template_path = [os.path.expanduser(path) for path in _template_path]
 
-    jenv_opt: dict[str, t.Any] = {"autoescape": True}
-    jenv_opt.update(jinja_env_options if jinja_env_options else {})
+        jenv_opt: dict[str, t.Any] = {"autoescape": True}
+        jenv_opt.update(jinja_env_options if jinja_env_options else {})
 
-    env = Environment(
-      loader=FileSystemLoader(template_path), extensions=["jinja2.ext.i18n"], **jenv_opt
-    )
-    sys_info = get_sys_info()
+        env = Environment(
+            loader=FileSystemLoader(template_path), extensions=["jinja2.ext.i18n"], **jenv_opt
+        )
+        sys_info = get_sys_info()
 
     base_dir = os.path.realpath(os.path.join(__file__, "..", ".."))
     nbui = gettext.translation(
@@ -797,24 +797,24 @@ This launches a Tornado-based Jupyter Server."""
     ZMQChannelsWebsocketConnection,
   ]
 
-  subcommands: dict[str, t.Any] = {
-    "list": (
-      JupyterServerListApp,
-      JupyterServerListApp.description.splitlines()[0],
-    ),
-    "stop": (
-      JupyterServerStopApp,
-      JupyterServerStopApp.description.splitlines()[0],
-    ),
-    "password": (
-      JupyterPasswordApp,
-      JupyterPasswordApp.description.splitlines()[0],
-    ),
-    "extension": (
-      ServerExtensionApp,
-      ServerExtensionApp.description.splitlines()[0],
-    ),
-  }
+    subcommands: dict[str, t.Any] = {
+        "list": (
+            JupyterServerListApp,
+            JupyterServerListApp.description.splitlines()[0],
+        ),
+        "stop": (
+            JupyterServerStopApp,
+            JupyterServerStopApp.description.splitlines()[0],
+        ),
+        "password": (
+            JupyterPasswordApp,
+            JupyterPasswordApp.description.splitlines()[0],
+        ),
+        "extension": (
+            ServerExtensionApp,
+            ServerExtensionApp.description.splitlines()[0],
+        ),
+    }
 
   # A list of services whose handlers will be exposed.
   # Subclasses can override this list to
@@ -929,12 +929,12 @@ This launches a Tornado-based Jupyter Server."""
       s.close()
       return "localhost"
 
-  @validate("ip")
-  def _validate_ip(self, proposal: t.Any) -> str:
-    value = t.cast(str, proposal["value"])
-    if value == "*":
-      value = ""
-    return value
+    @validate("ip")
+    def _validate_ip(self, proposal: t.Any) -> str:
+        value = t.cast(str, proposal["value"])
+        if value == "*":
+            value = ""
+        return value
 
   custom_display_url = Unicode(
     "",
@@ -988,29 +988,29 @@ This launches a Tornado-based Jupyter Server."""
     help="The permissions mode for UNIX socket creation (default: 0600).",
   )
 
-  @validate("sock_mode")
-  def _validate_sock_mode(self, proposal: t.Any) -> t.Any:
-    value = proposal["value"]
-    try:
-      converted_value = int(value.encode(), 8)
-      assert all(
-        (
-          # Ensure the mode is at least user readable/writable.
-          bool(converted_value & stat.S_IRUSR),
-          bool(converted_value & stat.S_IWUSR),
-          # And isn't out of bounds.
-          converted_value <= 2**12,
-        )
-      )
-    except ValueError as e:
-      raise TraitError(
-        'invalid --sock-mode value: %s, please specify as e.g. "0600"' % value
-      ) from e
-    except AssertionError as e:
-      raise TraitError(
-        "invalid --sock-mode value: %s, must have u+rw (0600) at a minimum" % value
-      ) from e
-    return value
+    @validate("sock_mode")
+    def _validate_sock_mode(self, proposal: t.Any) -> t.Any:
+        value = proposal["value"]
+        try:
+            converted_value = int(value.encode(), 8)
+            assert all(
+                (
+                    # Ensure the mode is at least user readable/writable.
+                    bool(converted_value & stat.S_IRUSR),
+                    bool(converted_value & stat.S_IWUSR),
+                    # And isn't out of bounds.
+                    converted_value <= 2**12,
+                )
+            )
+        except ValueError as e:
+            raise TraitError(
+                'invalid --sock-mode value: %s, please specify as e.g. "0600"' % value
+            ) from e
+        except AssertionError as e:
+            raise TraitError(
+                "invalid --sock-mode value: %s, must have u+rw (0600) at a minimum" % value
+            ) from e
+        return value
 
   certfile = Unicode(
     "",
@@ -1403,14 +1403,14 @@ This launches a Tornado-based Jupyter Server."""
                        """,
   )
 
-  @validate("base_url")
-  def _update_base_url(self, proposal: t.Any) -> str:
-    value = t.cast(str, proposal["value"])
-    if not value.startswith("/"):
-      value = "/" + value
-    if not value.endswith("/"):
-      value = value + "/"
-    return value
+    @validate("base_url")
+    def _update_base_url(self, proposal: t.Any) -> str:
+        value = t.cast(str, proposal["value"])
+        if not value.startswith("/"):
+            value = "/" + value
+        if not value.endswith("/"):
+            value = value + "/"
+        return value
 
   extra_static_paths = List(
     Unicode(),
@@ -1421,16 +1421,16 @@ This launches a Tornado-based Jupyter Server."""
         or overriding individual files in the IPython""",
   )
 
-  @property
-  def static_file_path(self) -> list[str]:
-    """return extra paths + the default location"""
-    return [*self.extra_static_paths, DEFAULT_STATIC_FILES_PATH]
+    @property
+    def static_file_path(self) -> list[str]:
+        """return extra paths + the default location"""
+        return [*self.extra_static_paths, DEFAULT_STATIC_FILES_PATH]
 
   static_custom_path = List(Unicode(), help=_i18n("""Path to search for custom.js, css"""))
 
-  @default("static_custom_path")
-  def _default_static_custom_path(self) -> list[str]:
-    return [os.path.join(d, "custom") for d in (self.config_dir, DEFAULT_STATIC_FILES_PATH)]
+    @default("static_custom_path")
+    def _default_static_custom_path(self) -> list[str]:
+        return [os.path.join(d, "custom") for d in (self.config_dir, DEFAULT_STATIC_FILES_PATH)]
 
   extra_template_paths = List(
     Unicode(),
@@ -1442,10 +1442,10 @@ This launches a Tornado-based Jupyter Server."""
     ),
   )
 
-  @property
-  def template_file_path(self) -> list[str]:
-    """return extra paths + the default locations"""
-    return self.extra_template_paths + DEFAULT_TEMPLATE_PATH_LIST
+    @property
+    def template_file_path(self) -> list[str]:
+        """return extra paths + the default locations"""
+        return self.extra_template_paths + DEFAULT_TEMPLATE_PATH_LIST
 
   extra_services = List(
     Unicode(),
@@ -1484,22 +1484,22 @@ This launches a Tornado-based Jupyter Server."""
     help=_i18n("The kernel manager class to use."),
   )
 
-  @default("kernel_manager_class")
-  def _default_kernel_manager_class(self) -> t.Union[str, type[AsyncMappingKernelManager]]:
-    if self.gateway_config.gateway_enabled:
-      return "jupyter_server.gateway.managers.GatewayMappingKernelManager"
-    return AsyncMappingKernelManager
+    @default("kernel_manager_class")
+    def _default_kernel_manager_class(self) -> t.Union[str, type[AsyncMappingKernelManager]]:
+        if self.gateway_config.gateway_enabled:
+            return "jupyter_server.gateway.managers.GatewayMappingKernelManager"
+        return AsyncMappingKernelManager
 
   session_manager_class = Type(
     config=True,
     help=_i18n("The session manager class to use."),
   )
 
-  @default("session_manager_class")
-  def _default_session_manager_class(self) -> t.Union[str, type[SessionManager]]:
-    if self.gateway_config.gateway_enabled:
-      return "jupyter_server.gateway.managers.GatewaySessionManager"
-    return SessionManager
+    @default("session_manager_class")
+    def _default_session_manager_class(self) -> t.Union[str, type[SessionManager]]:
+        if self.gateway_config.gateway_enabled:
+            return "jupyter_server.gateway.managers.GatewaySessionManager"
+        return SessionManager
 
   kernel_websocket_connection_class = Type(
     klass=BaseKernelWebsocketConnection,
@@ -1507,13 +1507,13 @@ This launches a Tornado-based Jupyter Server."""
     help=_i18n("The kernel websocket connection class to use."),
   )
 
-  @default("kernel_websocket_connection_class")
-  def _default_kernel_websocket_connection_class(
-    self,
-  ) -> t.Union[str, type[ZMQChannelsWebsocketConnection]]:
-    if self.gateway_config.gateway_enabled:
-      return "jupyter_server.gateway.connections.GatewayWebSocketConnection"
-    return ZMQChannelsWebsocketConnection
+    @default("kernel_websocket_connection_class")
+    def _default_kernel_websocket_connection_class(
+        self,
+    ) -> t.Union[str, type[ZMQChannelsWebsocketConnection]]:
+        if self.gateway_config.gateway_enabled:
+            return "jupyter_server.gateway.connections.GatewayWebSocketConnection"
+        return ZMQChannelsWebsocketConnection
 
   config_manager_class = Type(
     default_value=ConfigManager,
@@ -1534,11 +1534,11 @@ This launches a Tornado-based Jupyter Server."""
         """,
   )
 
-  @default("kernel_spec_manager_class")
-  def _default_kernel_spec_manager_class(self) -> t.Union[str, type[KernelSpecManager]]:
-    if self.gateway_config.gateway_enabled:
-      return "jupyter_server.gateway.managers.GatewayKernelSpecManager"
-    return KernelSpecManager
+    @default("kernel_spec_manager_class")
+    def _default_kernel_spec_manager_class(self) -> t.Union[str, type[KernelSpecManager]]:
+        if self.gateway_config.gateway_enabled:
+            return "jupyter_server.gateway.managers.GatewayKernelSpecManager"
+        return KernelSpecManager
 
   login_handler_class = Type(
     default_value=LoginHandler,
@@ -1698,11 +1698,11 @@ This launches a Tornado-based Jupyter Server."""
       raise TraitError(trans.gettext("No such directory: '%r'") % value)
     return value
 
-  @observe("root_dir")
-  def _root_dir_changed(self, change: t.Any) -> None:
-    # record that root_dir is set,
-    # which affects loading of deprecated notebook_dir
-    self._root_dir_set = True
+    @observe("root_dir")
+    def _root_dir_changed(self, change: t.Any) -> None:
+        # record that root_dir is set,
+        # which affects loading of deprecated notebook_dir
+        self._root_dir_set = True
 
   preferred_dir = Unicode(
     config=True,
@@ -1857,9 +1857,9 @@ This launches a Tornado-based Jupyter Server."""
     """Get the Extension that started this server."""
     return self._starter_app
 
-  def parse_command_line(self, argv: t.Optional[list[str]] = None) -> None:
-    """Parse the command line options."""
-    super().parse_command_line(argv)
+    def parse_command_line(self, argv: t.Optional[list[str]] = None) -> None:
+        """Parse the command line options."""
+        super().parse_command_line(argv)
 
     if self.extra_args:
       arg0 = self.extra_args[0]
@@ -1926,25 +1926,25 @@ This launches a Tornado-based Jupyter Server."""
         "because jupyter-client's version does not allow them (should be >8.3.0)."
       )
 
-    self.kernel_manager = self.kernel_manager_class(**kwargs)
-    self.contents_manager = self.contents_manager_class(
-      parent=self,
-      log=self.log,
-    )
-    # Trigger a default/validation here explicitly while we still support the
-    # deprecated trait on ServerApp (FIXME remove when deprecation finalized)
-    self.contents_manager.preferred_dir  # noqa: B018
-    self.session_manager = self.session_manager_class(
-      parent=self,
-      log=self.log,
-      kernel_manager=self.kernel_manager,
-      contents_manager=self.contents_manager,
-    )
-    self.config_manager = self.config_manager_class(
-      parent=self,
-      log=self.log,
-    )
-    identity_provider_kwargs = {"parent": self, "log": self.log}
+        self.kernel_manager = self.kernel_manager_class(**kwargs)
+        self.contents_manager = self.contents_manager_class(
+            parent=self,
+            log=self.log,
+        )
+        # Trigger a default/validation here explicitly while we still support the
+        # deprecated trait on ServerApp (FIXME remove when deprecation finalized)
+        self.contents_manager.preferred_dir  # noqa: B018
+        self.session_manager = self.session_manager_class(
+            parent=self,
+            log=self.log,
+            kernel_manager=self.kernel_manager,
+            contents_manager=self.contents_manager,
+        )
+        self.config_manager = self.config_manager_class(
+            parent=self,
+            log=self.log,
+        )
+        identity_provider_kwargs = {"parent": self, "log": self.log}
 
     if (
       self.login_handler_class is not LoginHandler
@@ -2149,40 +2149,40 @@ This launches a Tornado-based Jupyter Server."""
       )
       resource.setrlimit(resource.RLIMIT_NOFILE, (soft, hard))
 
-  def _get_urlparts(
-    self, path: t.Optional[str] = None, include_token: bool = False
-  ) -> urllib.parse.ParseResult:
-    """Constructs a urllib named tuple, ParseResult,
-    with default values set by server config.
-    The returned tuple can be manipulated using the `_replace` method.
-    """
-    if self.sock:
-      scheme = "http+unix"
-      netloc = urlencode_unix_socket_path(self.sock)
-    else:
-      if not self.ip:
-        ip = "localhost"
-      # Handle nonexplicit hostname.
-      elif self.ip in ("0.0.0.0", "::"):
-        ip = "%s" % socket.gethostname()
-      else:
-        ip = f"[{self.ip}]" if ":" in self.ip else self.ip
-      netloc = f"{ip}:{self.port}"
-      scheme = "https" if self.certfile else "http"
-    if not path:
-      path = self.default_url
-    query = None
-    # Don't log full token if it came from config
-    if include_token and self.identity_provider.token:
-      token = (
-        self.identity_provider.token if self.identity_provider.token_generated else "..."
-      )
-      query = urllib.parse.urlencode({"token": token})
-    # Build the URL Parts to dump.
-    urlparts = urllib.parse.ParseResult(
-      scheme=scheme, netloc=netloc, path=path, query=query or "", params="", fragment=""
-    )
-    return urlparts
+    def _get_urlparts(
+        self, path: t.Optional[str] = None, include_token: bool = False
+    ) -> urllib.parse.ParseResult:
+        """Constructs a urllib named tuple, ParseResult,
+        with default values set by server config.
+        The returned tuple can be manipulated using the `_replace` method.
+        """
+        if self.sock:
+            scheme = "http+unix"
+            netloc = urlencode_unix_socket_path(self.sock)
+        else:
+            if not self.ip:
+                ip = "localhost"
+            # Handle nonexplicit hostname.
+            elif self.ip in ("0.0.0.0", "::"):
+                ip = "%s" % socket.gethostname()
+            else:
+                ip = f"[{self.ip}]" if ":" in self.ip else self.ip
+            netloc = f"{ip}:{self.port}"
+            scheme = "https" if self.certfile else "http"
+        if not path:
+            path = self.default_url
+        query = None
+        # Don't log full token if it came from config
+        if include_token and self.identity_provider.token:
+            token = (
+                self.identity_provider.token if self.identity_provider.token_generated else "..."
+            )
+            query = urllib.parse.urlencode({"token": token})
+        # Build the URL Parts to dump.
+        urlparts = urllib.parse.ParseResult(
+            scheme=scheme, netloc=netloc, path=path, query=query or "", params="", fragment=""
+        )
+        return urlparts
 
   @property
   def public_url(self) -> str:
@@ -2301,9 +2301,9 @@ This launches a Tornado-based Jupyter Server."""
     """Handle an info signal."""
     self.log.info(self.running_server_info())
 
-  def init_components(self) -> None:
-    """Check the components submodule, and warn if it's unclean"""
-    # TODO: this should still check, but now we use bower, not git submodule
+    def init_components(self) -> None:
+        """Check the components submodule, and warn if it's unclean"""
+        # TODO: this should still check, but now we use bower, not git submodule
 
   def find_server_extensions(self) -> None:
     """
@@ -2472,51 +2472,51 @@ This launches a Tornado-based Jupyter Server."""
     self.http_server.listen(self.port, self.ip)
     return True
 
-  def _find_http_port(self) -> None:
-    """Find an available http port."""
-    success = False
-    port = self.port
-    for port in random_ports(self.port, self.port_retries + 1):
-      try:
-        sockets = bind_sockets(port, self.ip)
-        sockets[0].close()
-      except OSError as e:
-        if e.errno == errno.EADDRINUSE:
-          if self.port_retries:
-            self.log.info(
-              _i18n("The port %i is already in use, trying another port.") % port
-            )
-          else:
-            self.log.info(_i18n("The port %i is already in use.") % port)
-          continue
-        if e.errno in (
-          errno.EACCES,
-          getattr(errno, "WSAEACCES", errno.EACCES),
-        ):
-          self.log.warning(_i18n("Permission to listen on port %i denied.") % port)
-          continue
-        raise
-      else:
-        success = True
-        self.port = port
-        break
-    if not success:
-      if self.port_retries:
-        self.log.critical(
-          _i18n(
-            "ERROR: the Jupyter server could not be started because "
-            "no available port could be found."
-          )
-        )
-      else:
-        self.log.critical(
-          _i18n(
-            "ERROR: the Jupyter server could not be started because "
-            "port %i is not available."
-          )
-          % port
-        )
-      self.exit(1)
+    def _find_http_port(self) -> None:
+        """Find an available http port."""
+        success = False
+        port = self.port
+        for port in random_ports(self.port, self.port_retries + 1):
+            try:
+                sockets = bind_sockets(port, self.ip)
+                sockets[0].close()
+            except OSError as e:
+                if e.errno == errno.EADDRINUSE:
+                    if self.port_retries:
+                        self.log.info(
+                            _i18n("The port %i is already in use, trying another port.") % port
+                        )
+                    else:
+                        self.log.info(_i18n("The port %i is already in use.") % port)
+                    continue
+                if e.errno in (
+                    errno.EACCES,
+                    getattr(errno, "WSAEACCES", errno.EACCES),
+                ):
+                    self.log.warning(_i18n("Permission to listen on port %i denied.") % port)
+                    continue
+                raise
+            else:
+                success = True
+                self.port = port
+                break
+        if not success:
+            if self.port_retries:
+                self.log.critical(
+                    _i18n(
+                        "ERROR: the Jupyter server could not be started because "
+                        "no available port could be found."
+                    )
+                )
+            else:
+                self.log.critical(
+                    _i18n(
+                        "ERROR: the Jupyter server could not be started because "
+                        "port %i is not available."
+                    )
+                    % port
+                )
+            self.exit(1)
 
   @staticmethod
   def _init_asyncio_patch() -> None:
@@ -2543,15 +2543,15 @@ This launches a Tornado-based Jupyter Server."""
           # prefer Selector to Proactor for tornado + pyzmq
           asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
 
-  @catch_config_error
-  def initialize(
-    self,
-    argv: t.Optional[list[str]] = None,
-    find_extensions: bool = True,
-    new_httpserver: bool = True,
-    starter_extension: t.Any = None,
-  ) -> None:
-    """Initialize the Server application class, configurables, web application, and http server.
+    @catch_config_error
+    def initialize(
+        self,
+        argv: t.Optional[list[str]] = None,
+        find_extensions: bool = True,
+        new_httpserver: bool = True,
+        starter_extension: t.Any = None,
+    ) -> None:
+        """Initialize the Server application class, configurables, web application, and http server.
 
     Parameters
     ----------
@@ -2635,38 +2635,38 @@ This launches a Tornado-based Jupyter Server."""
     self.log.info(extension_msg % n_extensions)
     await ensure_async(self.extension_manager.stop_all_extensions())
 
-  def running_server_info(self, kernel_count: bool = True) -> str:
-    """Return the current working directory and the server url information"""
-    info = t.cast(str, self.contents_manager.info_string()) + "\n"
-    if kernel_count:
-      n_kernels = len(self.kernel_manager.list_kernel_ids())
-      kernel_msg = trans.ngettext("%d active kernel", "%d active kernels", n_kernels)
-      info += kernel_msg % n_kernels
-      info += "\n"
-    # Format the info so that the URL fits on a single line in 80 char display
-    info += _i18n(f"Jupyter Server {ServerApp.version} is running at:\n{self.display_url}")
-    if self.gateway_config.gateway_enabled:
-      info += (
-        _i18n("\nKernels will be managed by the Gateway server running at:\n%s")
-        % self.gateway_config.url
-      )
-    return info
+    def running_server_info(self, kernel_count: bool = True) -> str:
+        """Return the current working directory and the server url information"""
+        info = t.cast(str, self.contents_manager.info_string()) + "\n"
+        if kernel_count:
+            n_kernels = len(self.kernel_manager.list_kernel_ids())
+            kernel_msg = trans.ngettext("%d active kernel", "%d active kernels", n_kernels)
+            info += kernel_msg % n_kernels
+            info += "\n"
+        # Format the info so that the URL fits on a single line in 80 char display
+        info += _i18n(f"Jupyter Server {ServerApp.version} is running at:\n{self.display_url}")
+        if self.gateway_config.gateway_enabled:
+            info += (
+                _i18n("\nKernels will be managed by the Gateway server running at:\n%s")
+                % self.gateway_config.url
+            )
+        return info
 
-  def server_info(self) -> dict[str, t.Any]:
-    """Return a JSONable dict of information about this server."""
-    return {
-      "url": self.connection_url,
-      "hostname": self.ip if self.ip else "localhost",
-      "port": self.port,
-      "sock": self.sock,
-      "secure": bool(self.certfile),
-      "base_url": self.base_url,
-      "token": self.identity_provider.token,
-      "root_dir": os.path.abspath(self.root_dir),
-      "password": bool(self.password),
-      "pid": os.getpid(),
-      "version": ServerApp.version,
-    }
+    def server_info(self) -> dict[str, t.Any]:
+        """Return a JSONable dict of information about this server."""
+        return {
+            "url": self.connection_url,
+            "hostname": self.ip if self.ip else "localhost",
+            "port": self.port,
+            "sock": self.sock,
+            "secure": bool(self.certfile),
+            "base_url": self.base_url,
+            "token": self.identity_provider.token,
+            "root_dir": os.path.abspath(self.root_dir),
+            "password": bool(self.password),
+            "pid": os.getpid(),
+            "version": ServerApp.version,
+        }
 
   def write_server_info_file(self) -> None:
     """Write the result of server_info() to the JSON file info_file."""
@@ -2785,21 +2785,21 @@ This launches a Tornado-based Jupyter Server."""
       if e.errno != errno.ENOENT:
         raise
 
-  def _prepare_browser_open(self) -> tuple[str, t.Optional[str]]:
-    """Prepare to open the browser."""
-    if not self.use_redirect_file:
-      uri = self.default_url[len(self.base_url) :]
+    def _prepare_browser_open(self) -> tuple[str, t.Optional[str]]:
+        """Prepare to open the browser."""
+        if not self.use_redirect_file:
+            uri = self.default_url[len(self.base_url) :]
 
       if self.identity_provider.token:
         uri = url_concat(uri, {"token": self.identity_provider.token})
 
-    if self.file_to_run:  # noqa: SIM108
-      # Create a separate, temporary open-browser-file
-      # pointing at a specific file.
-      open_file = self.browser_open_file_to_run
-    else:
-      # otherwise, just return the usual open browser file.
-      open_file = self.browser_open_file
+        if self.file_to_run:  # noqa: SIM108
+            # Create a separate, temporary open-browser-file
+            # pointing at a specific file.
+            open_file = self.browser_open_file_to_run
+        else:
+            # otherwise, just return the usual open browser file.
+            open_file = self.browser_open_file
 
     if self.use_redirect_file:
       assembled_url = urljoin("file:", pathname2url(open_file))

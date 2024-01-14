@@ -25,8 +25,8 @@ class KernelWebsocketHandler(WebSocketMixin, WebSocketHandler, JupyterHandler): 
   def set_default_headers(self):
     """Undo the set_default_headers in JupyterHandler
 
-    which doesn't make sense for websockets
-    """
+        which doesn't make sense for websockets
+        """
 
   def get_compression_options(self):
     """Get the socket connection options."""
@@ -40,12 +40,12 @@ class KernelWebsocketHandler(WebSocketMixin, WebSocketHandler, JupyterHandler): 
       self.log.warning("Couldn't authenticate WebSocket connection")
       raise web.HTTPError(403)
 
-    # authorize the user.
-    authorized = await ensure_async(
-      self.authorizer.is_authorized(self, user, "execute", "kernels")
-    )
-    if not authorized:
-      raise web.HTTPError(403)
+        # authorize the user.
+        authorized = await ensure_async(
+            self.authorizer.is_authorized(self, user, "execute", "kernels")
+        )
+        if not authorized:
+            raise web.HTTPError(403)
 
     kernel = self.kernel_manager.get_kernel(self.kernel_id)
     self.connection = self.kernel_websocket_connection_class(

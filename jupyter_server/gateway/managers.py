@@ -37,8 +37,8 @@ from .gateway_client import GatewayClient, gateway_request
 class GatewayMappingKernelManager(AsyncMappingKernelManager):
   """Kernel manager that supports remote kernels hosted by Jupyter Kernel or Enterprise Gateway."""
 
-  # We'll maintain our own set of kernel ids
-  _kernels: dict[str, GatewayKernelManager] = {}  # type:ignore[assignment]
+    # We'll maintain our own set of kernel ids
+    _kernels: dict[str, GatewayKernelManager] = {}  # type:ignore[assignment]
 
   @default("kernel_manager_class")
   def _default_kernel_manager_class(self):
@@ -303,52 +303,52 @@ class GatewayKernelSpecManager(KernelSpecManager):
   async def get_kernel_spec(self, kernel_name, **kwargs):
     """Get kernel spec for kernel_name.
 
-    Parameters
-    ----------
-    kernel_name : str
-        The name of the kernel.
-    """
-    kernel_spec_url = self._get_kernelspecs_endpoint_url(kernel_name=str(kernel_name))
-    self.log.debug(f"Request kernel spec at: {kernel_spec_url}")
-    try:
-      response = await gateway_request(kernel_spec_url, method="GET")
-    except web.HTTPError as error:
-      if error.status_code == 404:
-        # Convert not found to KeyError since that's what the Notebook handler expects
-        # message is not used, but might as well make it useful for troubleshooting
-        msg = f"kernelspec {kernel_name} not found on Gateway server at: {GatewayClient.instance().url}"
-        raise KeyError(msg) from None
-      else:
-        raise
-    else:
-      kernel_spec = json_decode(response.body)
+        Parameters
+        ----------
+        kernel_name : str
+            The name of the kernel.
+        """
+        kernel_spec_url = self._get_kernelspecs_endpoint_url(kernel_name=str(kernel_name))
+        self.log.debug(f"Request kernel spec at: {kernel_spec_url}")
+        try:
+            response = await gateway_request(kernel_spec_url, method="GET")
+        except web.HTTPError as error:
+            if error.status_code == 404:
+                # Convert not found to KeyError since that's what the Notebook handler expects
+                # message is not used, but might as well make it useful for troubleshooting
+                msg = f"kernelspec {kernel_name} not found on Gateway server at: {GatewayClient.instance().url}"
+                raise KeyError(msg) from None
+            else:
+                raise
+        else:
+            kernel_spec = json_decode(response.body)
 
     return kernel_spec
 
   async def get_kernel_spec_resource(self, kernel_name, path):
     """Get kernel spec for kernel_name.
 
-    Parameters
-    ----------
-    kernel_name : str
-        The name of the kernel.
-    path : str
-        The name of the desired resource
-    """
-    kernel_spec_resource_url = url_path_join(
-      self.base_resource_endpoint, str(kernel_name), str(path)
-    )
-    self.log.debug(f"Request kernel spec resource '{path}' at: {kernel_spec_resource_url}")
-    try:
-      response = await gateway_request(kernel_spec_resource_url, method="GET")
-    except web.HTTPError as error:
-      if error.status_code == 404:
-        kernel_spec_resource = None
-      else:
-        raise
-    else:
-      kernel_spec_resource = response.body
-    return kernel_spec_resource
+        Parameters
+        ----------
+        kernel_name : str
+            The name of the kernel.
+        path : str
+            The name of the desired resource
+        """
+        kernel_spec_resource_url = url_path_join(
+            self.base_resource_endpoint, str(kernel_name), str(path)
+        )
+        self.log.debug(f"Request kernel spec resource '{path}' at: {kernel_spec_resource_url}")
+        try:
+            response = await gateway_request(kernel_spec_resource_url, method="GET")
+        except web.HTTPError as error:
+            if error.status_code == 404:
+                kernel_spec_resource = None
+            else:
+                raise
+        else:
+            kernel_spec_resource = response.body
+        return kernel_spec_resource
 
 
 class GatewaySessionManager(SessionManager):
@@ -356,22 +356,22 @@ class GatewaySessionManager(SessionManager):
 
   kernel_manager = Instance("jupyter_server.gateway.managers.GatewayMappingKernelManager")
 
-  async def kernel_culled(self, kernel_id: str) -> bool:  # typing: ignore
-    """Checks if the kernel is still considered alive and returns true if it's not found."""
-    km: Optional[GatewayKernelManager] = None
-    try:
-      # Since we keep the models up-to-date via client polling, use that state to determine
-      # if this kernel no longer exists on the gateway server rather than perform a redundant
-      # fetch operation - especially since this is called at approximately the same interval.
-      # This has the effect of reducing GET /api/kernels requests against the gateway server
-      # by 50%!
-      # Note that should the redundant polling be consolidated, or replaced with an event-based
-      # notification model, this will need to be revisited.
-      km = self.kernel_manager.get_kernel(kernel_id)
-    except Exception:
-      # Let exceptions here reflect culled kernel
-      pass
-    return km is None
+    async def kernel_culled(self, kernel_id: str) -> bool:  # typing: ignore
+        """Checks if the kernel is still considered alive and returns true if it's not found."""
+        km: Optional[GatewayKernelManager] = None
+        try:
+            # Since we keep the models up-to-date via client polling, use that state to determine
+            # if this kernel no longer exists on the gateway server rather than perform a redundant
+            # fetch operation - especially since this is called at approximately the same interval.
+            # This has the effect of reducing GET /api/kernels requests against the gateway server
+            # by 50%!
+            # Note that should the redundant polling be consolidated, or replaced with an event-based
+            # notification model, this will need to be revisited.
+            km = self.kernel_manager.get_kernel(kernel_id)
+        except Exception:
+            # Let exceptions here reflect culled kernel
+            pass
+        return km is None
 
 
 class GatewayKernelManager(ServerKernelManager):
@@ -408,17 +408,17 @@ class GatewayKernelManager(ServerKernelManager):
   # create a Client connected to our Kernel
   # --------------------------------------------------------------------------
 
-  def client(self, **kwargs):
-    """Create a client configured to connect to our kernel"""
-    kw: dict[str, Any] = {}
-    kw.update(self.get_connection_info(session=True))
-    kw.update(
-      {
-        "connection_file": self.connection_file,
-        "parent": self,
-      }
-    )
-    kw["kernel_id"] = self.kernel_id
+    def client(self, **kwargs):
+        """Create a client configured to connect to our kernel"""
+        kw: dict[str, Any] = {}
+        kw.update(self.get_connection_info(session=True))
+        kw.update(
+            {
+                "connection_file": self.connection_file,
+                "parent": self,
+            }
+        )
+        kw["kernel_id"] = self.kernel_id
 
     # add kwargs last, for manual overrides
     kw.update(kwargs)
@@ -438,15 +438,15 @@ class GatewayKernelManager(ServerKernelManager):
       try:
         response = await gateway_request(self.kernel_url, method="GET")
 
-      except web.HTTPError as error:
-        if error.status_code == 404:
-          self.log.warning("Kernel not found at: %s" % self.kernel_url)
-          model = None
-        else:
-          raise
-      else:
-        model = json_decode(response.body)
-      self.log.debug("Kernel retrieved: %s" % model)
+            except web.HTTPError as error:
+                if error.status_code == 404:
+                    self.log.warning("Kernel not found at: %s" % self.kernel_url)
+                    model = None
+                else:
+                    raise
+            else:
+                model = json_decode(response.body)
+            self.log.debug("Kernel retrieved: %s" % model)
 
     if model:  # Update activity markers
       self.last_activity = datetime.datetime.strptime(
@@ -527,16 +527,16 @@ class GatewayKernelManager(ServerKernelManager):
   async def shutdown_kernel(self, now=False, restart=False):
     """Attempts to stop the kernel process cleanly via HTTP."""
 
-    if self.has_kernel:
-      self.log.debug("Request shutdown kernel at: %s", self.kernel_url)
-      try:
-        response = await gateway_request(self.kernel_url, method="DELETE")
-        self.log.debug("Shutdown kernel response: %d %s", response.code, response.reason)
-      except web.HTTPError as error:
-        if error.status_code == 404:
-          self.log.debug("Shutdown kernel response: kernel not found (ignored)")
-        else:
-          raise
+        if self.has_kernel:
+            self.log.debug("Request shutdown kernel at: %s", self.kernel_url)
+            try:
+                response = await gateway_request(self.kernel_url, method="DELETE")
+                self.log.debug("Shutdown kernel response: %d %s", response.code, response.reason)
+            except web.HTTPError as error:
+                if error.status_code == 404:
+                    self.log.debug("Shutdown kernel response: kernel not found (ignored)")
+                else:
+                    raise
 
   @emit_kernel_action_event(
     success_msg="Kernel {kernel_id} was restarted.",
@@ -583,15 +583,15 @@ class GatewayKernelManager(ServerKernelManager):
       self.log.debug(f"The kernel: {self.kernel} no longer exists.")
       return False
 
-  def cleanup_resources(self, restart=False):
-    """Clean up resources when the kernel is shut down"""
+    def cleanup_resources(self, restart=False):
+        """Clean up resources when the kernel is shut down"""
 
 
 KernelManagerABC.register(GatewayKernelManager)
 
 
 class ChannelQueue(Queue):  # type:ignore[type-arg]
-  """A queue for a named channel."""
+    """A queue for a named channel."""
 
   channel_name: Optional[str] = None
   response_router_finished: bool
@@ -624,27 +624,27 @@ class ChannelQueue(Queue):  # type:ignore[type-arg]
           raise
         await asyncio.sleep(0)
 
-  async def get_msg(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
-    """Get a message from the queue."""
-    timeout = kwargs.get("timeout", 1)
-    msg = await self._async_get(timeout=timeout)
-    self.log.debug(
-      "Received message on channel: {}, msg_id: {}, msg_type: {}".format(
-        self.channel_name, msg["msg_id"], msg["msg_type"] if msg else "null"
-      )
-    )
-    self.task_done()
-    return cast("dict[str, Any]", msg)
+    async def get_msg(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        """Get a message from the queue."""
+        timeout = kwargs.get("timeout", 1)
+        msg = await self._async_get(timeout=timeout)
+        self.log.debug(
+            "Received message on channel: {}, msg_id: {}, msg_type: {}".format(
+                self.channel_name, msg["msg_id"], msg["msg_type"] if msg else "null"
+            )
+        )
+        self.task_done()
+        return cast("dict[str, Any]", msg)
 
-  def send(self, msg: dict[str, Any]) -> None:
-    """Send a message to the queue."""
-    message = json.dumps(msg, default=ChannelQueue.serialize_datetime).replace("</", "<\\/")
-    self.log.debug(
-      "Sending message on channel: {}, msg_id: {}, msg_type: {}".format(
-        self.channel_name, msg["msg_id"], msg["msg_type"] if msg else "null"
-      )
-    )
-    self.channel_socket.send(message)
+    def send(self, msg: dict[str, Any]) -> None:
+        """Send a message to the queue."""
+        message = json.dumps(msg, default=ChannelQueue.serialize_datetime).replace("</", "<\\/")
+        self.log.debug(
+            "Sending message on channel: {}, msg_id: {}, msg_type: {}".format(
+                self.channel_name, msg["msg_id"], msg["msg_type"] if msg else "null"
+            )
+        )
+        self.channel_socket.send(message)
 
   @staticmethod
   def serialize_datetime(dt):
@@ -653,8 +653,8 @@ class ChannelQueue(Queue):  # type:ignore[type-arg]
       return dt.timestamp()
     return None
 
-  def start(self) -> None:
-    """Start the queue."""
+    def start(self) -> None:
+        """Start the queue."""
 
   def stop(self) -> None:
     """Stop the queue."""
@@ -707,15 +707,15 @@ class GatewayKernelClient(AsyncKernelClient):
   :meth:`get_shell_msg` to fetch messages from the shell channel.
   """
 
-  # flag for whether execute requests should be allowed to call raw_input:
-  allow_stdin = False
-  _channels_stopped: bool
-  _channel_queues: Optional[dict[str, ChannelQueue]]
-  _control_channel: Optional[ChannelQueue]  # type:ignore[assignment]
-  _hb_channel: Optional[ChannelQueue]  # type:ignore[assignment]
-  _stdin_channel: Optional[ChannelQueue]  # type:ignore[assignment]
-  _iopub_channel: Optional[ChannelQueue]  # type:ignore[assignment]
-  _shell_channel: Optional[ChannelQueue]  # type:ignore[assignment]
+    # flag for whether execute requests should be allowed to call raw_input:
+    allow_stdin = False
+    _channels_stopped: bool
+    _channel_queues: Optional[dict[str, ChannelQueue]]
+    _control_channel: Optional[ChannelQueue]  # type:ignore[assignment]
+    _hb_channel: Optional[ChannelQueue]  # type:ignore[assignment]
+    _stdin_channel: Optional[ChannelQueue]  # type:ignore[assignment]
+    _iopub_channel: Optional[ChannelQueue]  # type:ignore[assignment]
+    _shell_channel: Optional[ChannelQueue]  # type:ignore[assignment]
 
   def __init__(self, kernel_id, **kwargs):
     """Initialize a gateway kernel client."""

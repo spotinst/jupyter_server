@@ -5,7 +5,6 @@
 import os
 import pathlib
 import uuid
-from asyncio import Task
 from typing import Any, Dict, List, NewType, Optional, Union, cast
 
 KernelName = NewType("KernelName", str)
@@ -287,22 +286,21 @@ class SessionManager(LoggingConfigurable):
 
     if session_id is None or session_id == "":
         session_id = self.new_session_id()
-
-    record = KernelSessionRecord(session_id=session_id)
-    self._pending_sessions.update(record)
-    if kernel_id is not None and kernel_id in self.kernel_manager:
-      pass
-    else:
-      kernel_id = await self.start_kernel_for_session(
-        session_id, path, name, type, kernel_name
-      )
-    record.kernel_id = kernel_id
-    self._pending_sessions.update(record)
-    result = await self.save_session(
-      session_id, path=path, name=name, type=type, kernel_id=kernel_id
-    )
-    self._pending_sessions.remove(record)
-    return cast(Dict[str, Any], result)
+        record = KernelSessionRecord(session_id=session_id)
+        self._pending_sessions.update(record)
+        if kernel_id is not None and kernel_id in self.kernel_manager:
+            pass
+        else:
+            kernel_id = await self.start_kernel_for_session(
+                session_id, path, name, type, kernel_name
+            )
+        record.kernel_id = kernel_id
+        self._pending_sessions.update(record)
+        result = await self.save_session(
+            session_id, path=path, name=name, type=type, kernel_id=kernel_id
+        )
+        self._pending_sessions.remove(record)
+        return cast(Dict[str, Any], result)
 
   def get_kernel_env(
     self, path: Optional[str], name: Optional[ModelName] = None
@@ -367,13 +365,13 @@ class SessionManager(LoggingConfigurable):
     else:
       kernel_path = await ensure_async(self.contents_manager.get_kernel_path(path=path))
 
-      kernel_env = self.get_kernel_env(path, name)
-      kernel_id = await self.kernel_manager.start_kernel(
-        path=kernel_path,
-        kernel_name=kernel_name,
-        env=kernel_env,
-      )
-    return kernel_id
+        kernel_env = self.get_kernel_env(path, name)
+        kernel_id = await self.kernel_manager.start_kernel(
+            path=kernel_path,
+            kernel_name=kernel_name,
+            env=kernel_env,
+        )
+        return cast(str, kernel_id)
 
   async def save_session(self, session_id, path=None, name=None, type=None, kernel_id=None):
     """Saves the items for the session with the given session_id
@@ -446,7 +444,7 @@ class SessionManager(LoggingConfigurable):
           raise TypeError(msg)
         conditions.append("%s=?" % column)
 
-      query = "SELECT * FROM session WHERE %s" % (" AND ".join(conditions))
+        query = "SELECT * FROM session WHERE %s" % (" AND ".join(conditions))
 
       self.cursor.execute(query, list(kwargs.values()))
       try:
@@ -490,13 +488,13 @@ class SessionManager(LoggingConfigurable):
       # no changes
       return
 
-    sets = []
-    for column in kwargs:
-      if column not in self._columns:
-        raise TypeError("No such column: %r" % column)
-      sets.append("%s=?" % column)
-    query = "UPDATE session SET %s WHERE session_id=?" % (", ".join(sets))
-    self.cursor.execute(query, [*list(kwargs.values()), session_id])
+        sets = []
+        for column in kwargs:
+            if column not in self._columns:
+                raise TypeError("No such column: %r" % column)
+            sets.append("%s=?" % column)
+        query = "UPDATE session SET %s WHERE session_id=?" % (", ".join(sets))
+        self.cursor.execute(query, [*list(kwargs.values()), session_id])
 
     if hasattr(self.kernel_manager, "update_env"):
       self.cursor.execute(
@@ -509,28 +507,28 @@ class SessionManager(LoggingConfigurable):
     """Checks if the kernel is still considered alive and returns true if its not found."""
     return kernel_id not in self.kernel_manager
 
-  async def row_to_model(self, row, tolerate_culled=False):
-    """Takes sqlite database session row and turns it into a dictionary"""
-    kernel_culled: bool = await ensure_async(self.kernel_culled(row["kernel_id"]))
-    if kernel_culled:
-      # The kernel was culled or died without deleting the session.
-      # We can't use delete_session here because that tries to find
-      # and shut down the kernel - so we'll delete the row directly.
-      #
-      # If caller wishes to tolerate culled kernels, log a warning
-      # and return None.  Otherwise, raise KeyError with a similar
-      # message.
-      self.cursor.execute("DELETE FROM session WHERE session_id=?", (row["session_id"],))
-      msg = (
-        "Kernel '{kernel_id}' appears to have been culled or died unexpectedly, "
-        "invalidating session '{session_id}'. The session has been removed.".format(
-          kernel_id=row["kernel_id"], session_id=row["session_id"]
-        )
-      )
-      if tolerate_culled:
-        self.log.warning(f"{msg}  Continuing...")
-        return None
-      raise KeyError(msg)
+    async def row_to_model(self, row, tolerate_culled=False):
+        """Takes sqlite database session row and turns it into a dictionary"""
+        kernel_culled: bool = await ensure_async(self.kernel_culled(row["kernel_id"]))
+        if kernel_culled:
+            # The kernel was culled or died without deleting the session.
+            # We can't use delete_session here because that tries to find
+            # and shut down the kernel - so we'll delete the row directly.
+            #
+            # If caller wishes to tolerate culled kernels, log a warning
+            # and return None.  Otherwise, raise KeyError with a similar
+            # message.
+            self.cursor.execute("DELETE FROM session WHERE session_id=?", (row["session_id"],))
+            msg = (
+                "Kernel '{kernel_id}' appears to have been culled or died unexpectedly, "
+                "invalidating session '{session_id}'. The session has been removed.".format(
+                    kernel_id=row["kernel_id"], session_id=row["session_id"]
+                )
+            )
+            if tolerate_culled:
+                self.log.warning(f"{msg}  Continuing...")
+                return None
+            raise KeyError(msg)
 
     kernel_model = await ensure_async(self.kernel_manager.kernel_model(row["kernel_id"]))
     model = {
