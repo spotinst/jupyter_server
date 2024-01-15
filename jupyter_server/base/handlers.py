@@ -3,7 +3,6 @@
 # Distributed under the terms of the Modified BSD License.
 from __future__ import annotations
 
-import contextvars
 import functools
 import inspect
 import ipaddress
@@ -11,7 +10,10 @@ import json
 import mimetypes
 import os
 import re
+import sys
 import types
+import typing as ty
+import logging
 import warnings
 from http.client import responses
 from logging import Logger
@@ -23,7 +25,6 @@ from jinja2 import TemplateNotFound
 from jupyter_core.paths import is_hidden
 from jupyter_events import EventLogger
 from tornado import web
-from tornado.httputil import HTTPServerRequest
 from tornado.log import app_log
 from traitlets.config import Application
 
@@ -32,6 +33,7 @@ from jupyter_server import CallContext
 from jupyter_server._sysinfo import get_sys_info
 from jupyter_server._tz import utcnow
 from jupyter_server.auth.decorator import authorized
+from jupyter_server.auth.identity import User
 from jupyter_server.i18n import combine_translations
 from jupyter_server.services.security import csp_report_uri
 from jupyter_server.utils import (
@@ -49,19 +51,19 @@ if TYPE_CHECKING:
     from tornado.concurrent import Future
 
     from jupyter_server.auth.authorizer import Authorizer
-    from jupyter_server.auth.identity import IdentityProvider, User
+    from jupyter_server.auth.identity import IdentityProvider
     from jupyter_server.serverapp import ServerApp
     from jupyter_server.services.config.manager import ConfigManager
     from jupyter_server.services.contents.manager import ContentsManager
     from jupyter_server.services.kernels.kernelmanager import AsyncMappingKernelManager
     from jupyter_server.services.sessions.sessionmanager import SessionManager
 
-_current_request_var: contextvars.ContextVar[HTTPServerRequest] = contextvars.ContextVar("current_request")
 # -----------------------------------------------------------------------------
 # Top-level handlers
 # -----------------------------------------------------------------------------
 
 _sys_info_cache = None
+_my_globals = "myglobals"
 
 
 def json_sys_info():
@@ -80,11 +82,35 @@ def log() -> Logger:
         return app_log
 
 
+def get_token_value(request: ty.Any, prev: str) -> str:
+    header = "Authorization"
+    if header not in request.headers:
+        logging.error(f'Header "{header}" is missing')
+        return prev
+    logging.debug(f'Getting value from header "{header}"')
+    auth_header_value: str = request.headers[header]
+    if len(auth_header_value) == 0:
+        logging.error(f'Header "{header}" is empty')
+        return prev
+
+    try:
+        logging.info(f"Auth header value: {auth_header_value}")
+        # We expect the header value to be of the form "Bearer: XXX"
+        return auth_header_value.split(" ", maxsplit=1)[1]
+    except Exception as e:
+        logging.error(f"Could not read token from auth header: {str(e)}")
+
+    return prev
+
+
 class AuthenticatedHandler(web.RequestHandler):
     """A RequestHandler with an authenticated user."""
 
     def prepare(self):
-        _current_request_var.set(self.request)
+        if _my_globals not in sys.modules:
+            sys.modules[_my_globals] = types.ModuleType(_my_globals)
+        prevtoken = sys.modules[_my_globals].token if hasattr(sys.modules[_my_globals], "token") else ""
+        sys.modules[_my_globals].token = get_token_value(self.request, prevtoken)
 
     @property
     def base_url(self) -> str:
@@ -1141,11 +1167,13 @@ class PrometheusMetricsHandler(JupyterHandler):
         self.set_header("Content-Type", prometheus_client.CONTENT_TYPE_LATEST)
         self.write(prometheus_client.generate_latest(prometheus_client.REGISTRY))
 
-def get_current_request():
+def get_current_token():
     """
     Get :class:`tornado.httputil.HTTPServerRequest` that is currently being processed.
     """
-    return _current_request_var.get(None)
+    if _my_globals in sys.modules and hasattr(sys.modules[_my_globals], "token"):
+        return sys.modules[_my_globals].token
+    return ""
 
 # -----------------------------------------------------------------------------
 # URL pattern fragments for reuse
