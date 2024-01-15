@@ -5,6 +5,7 @@
 import os
 import pathlib
 import uuid
+from asyncio import Task
 from typing import Any, Dict, List, NewType, Optional, Union, cast
 
 KernelName = NewType("KernelName", str)
@@ -36,7 +37,7 @@ class KernelSessionRecordConflict(Exception):
 @dataclass
 class KernelSessionRecord:
     """A record object for tracking a Jupyter Server Kernel Session.
-
+  
     Two records that share a session_id must also share a kernel_id, while
     kernels can have multiple session (and thereby) session_ids
     associated with them.
@@ -53,7 +54,7 @@ class KernelSessionRecord:
                 [
                     self.session_id == other.session_id,
                     self.kernel_id is None or other.kernel_id is None,
-                ]
+                    ]
             )
             if any([condition1, condition2]):
                 return True
@@ -94,7 +95,7 @@ class KernelSessionRecord:
 
 class KernelSessionRecordList:
     """An object for storing and managing a list of KernelSessionRecords.
-
+  
     When adding a record to the list, the KernelSessionRecordList
     first checks if the record already exists in the list. If it does,
     the record will be updated with the new information; otherwise,
@@ -211,7 +212,7 @@ class SessionManager(LoggingConfigurable):
     _connection = None
     _columns = {"session_id", "path", "name", "type", "kernel_id"}
 
-    fut_kernel_id_dict = None
+    fut_kernel_id_dict: Optional[Dict[str, Task[str]]] = None
 
     @property
     def cursor(self):
@@ -286,7 +287,7 @@ class SessionManager(LoggingConfigurable):
 
         if session_id is None or session_id == "":
             session_id = self.new_session_id()
-
+        
         record = KernelSessionRecord(session_id=session_id)
         self._pending_sessions.update(record)
         if kernel_id is not None and kernel_id in self.kernel_manager:
@@ -437,35 +438,35 @@ class SessionManager(LoggingConfigurable):
             if not kwargs:
                 msg = "must specify a column to query"
                 raise TypeError(msg)
-
+    
             conditions = []
             for column in kwargs:
                 if column not in self._columns:
                     msg = f"No such column: {column}"
                     raise TypeError(msg)
                 conditions.append("%s=?" % column)
-
+    
             query = "SELECT * FROM session WHERE %s" % (" AND ".join(conditions))
-
+    
             self.cursor.execute(query, list(kwargs.values()))
             try:
                 row = self.cursor.fetchone()
             except KeyError:
                 # The kernel is missing, so the session just got deleted.
                 row = None
-
+    
             if row is None:
                 q = []
                 for key, value in kwargs.items():
                     q.append(f"{key}={value!r}")
-
+    
                 raise web.HTTPError(404, "Session not found: %s" % (", ".join(q)))
-
+    
             try:
                 model = await self.row_to_model(row)
             except KeyError as e:
                 raise web.HTTPError(404, "Session not found: %s" % str(e)) from e
-
+    
         return model
 
     async def update_session(self, session_id, **kwargs):
