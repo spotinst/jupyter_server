@@ -30,6 +30,7 @@ from base64 import encodebytes
 from pathlib import Path
 
 import jupyter_client
+import pydevd_pycharm
 from jupyter_client.kernelspec import KernelSpecManager
 from jupyter_client.manager import KernelManager
 from jupyter_client.session import Session
@@ -242,6 +243,14 @@ class ServerWebApplication(web.Application):
         kernel_websocket_connection_class=None,
         local_kernel_websocket_connection_class=None,
     ):
+        if os.getenv("PYDEVD_PYCHARM", "False") == "True":
+            warnings.warn(
+                "PYDEVD_PYCHARM is set to True. This is not recommended for production",
+                UserWarning,
+                stacklevel=2,
+            )
+            pydevd_pycharm.settrace('localhost', port=4321, stdoutToServer=True, stderrToServer=True)
+        
         """Initialize a server web application."""
         if identity_provider is None:
             warnings.warn(
