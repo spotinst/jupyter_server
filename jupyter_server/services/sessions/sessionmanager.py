@@ -37,7 +37,7 @@ class KernelSessionRecordConflict(Exception):
 @dataclass
 class KernelSessionRecord:
     """A record object for tracking a Jupyter Server Kernel Session.
-  
+
     Two records that share a session_id must also share a kernel_id, while
     kernels can have multiple session (and thereby) session_ids
     associated with them.
@@ -54,7 +54,7 @@ class KernelSessionRecord:
                 [
                     self.session_id == other.session_id,
                     self.kernel_id is None or other.kernel_id is None,
-                    ]
+                ]
             )
             if any([condition1, condition2]):
                 return True
@@ -95,7 +95,7 @@ class KernelSessionRecord:
 
 class KernelSessionRecordList:
     """An object for storing and managing a list of KernelSessionRecords.
-  
+
     When adding a record to the list, the KernelSessionRecordList
     first checks if the record already exists in the list. If it does,
     the record will be updated with the new information; otherwise,
