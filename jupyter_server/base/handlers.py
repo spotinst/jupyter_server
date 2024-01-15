@@ -3,7 +3,6 @@
 # Distributed under the terms of the Modified BSD License.
 from __future__ import annotations
 
-import contextvars
 import functools
 import inspect
 import ipaddress
@@ -59,7 +58,6 @@ if TYPE_CHECKING:
     from jupyter_server.services.kernels.kernelmanager import AsyncMappingKernelManager
     from jupyter_server.services.sessions.sessionmanager import SessionManager
 
-_current_request_var: contextvars.ContextVar = contextvars.ContextVar("current_request")
 # -----------------------------------------------------------------------------
 # Top-level handlers
 # -----------------------------------------------------------------------------
