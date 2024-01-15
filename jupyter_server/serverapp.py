@@ -1527,7 +1527,7 @@ class ServerApp(JupyterApp):
 
     @default("local_kernel_websocket_connection_class")
     def _default_local_kernel_websocket_connection_class(
-            self,
+        self,
     ) -> t.Union[str, type[ZMQChannelsWebsocketConnection]]:
         return ZMQChannelsWebsocketConnection
 

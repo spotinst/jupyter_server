@@ -76,17 +76,29 @@ class GatewayMappingKernelManager(AsyncMappingKernelManager):
             The API path (unicode, '/' delimited) for the cwd.
             Will be transformed to an OS path relative to root_dir.
         """
-        if kwargs.get("kernel_name") == 'python3':
+        kernel_name = kwargs.get("kernel_name")
+        if kernel_name == 'python3' or kernel_name.startswith('sc-'):
+            kwargs["kernel_name"] = "python3"
             kwargs["local"] = True
+            env = kwargs["env"]
+            app = kernel_name[3:]
+            startup_file = f"/tmp/{app}.py"
+            if kernel_name.startswith('sc-'):
+                startup_content = f"""from pyspark.sql import SparkSession
+spark = SparkSession.builder.appName('{kernel_name}').remote('sc://{app}.spark-apps.svc.cluster.local').getOrCreate()
+"""
+                env["PYTHONSTARTUP"] = startup_file
+                with open(startup_file, "w") as f:
+                    f.write(startup_content)
             kernel_id = await super().start_kernel(kernel_id=kernel_id, path=path, **kwargs)
             _local_kernels[kernel_id] = self._kernels[kernel_id]
             return kernel_id
         else:
             self.log.info(f"Request start kernel: kernel_id={kernel_id}, path='{path}'")
-    
+            
             if kernel_id is None and path is not None:
                 kwargs["cwd"] = self.cwd_for_path(path)
-    
+            
             km = self.kernel_manager_factory(parent=self, log=self.log)
             await km.start_kernel(kernel_id=kernel_id, **kwargs)
             kernel_id = km.kernel_id
@@ -94,6 +106,7 @@ class GatewayMappingKernelManager(AsyncMappingKernelManager):
             # Initialize culling if not already
             if not self._initialized_culler:
                 self.initialize_culler()
+
             return kernel_id
 
     async def kernel_model(self, kernel_id):
@@ -106,8 +119,9 @@ class GatewayMappingKernelManager(AsyncMappingKernelManager):
             The uuid of the kernel.
         """
         if kernel_id in _local_kernels:
+            str_kernel_id = str(kernel_id)
             model = super().kernel_model(kernel_id)
-            _local_kernels[str(kernel_id)] = model
+            _local_kernels[str_kernel_id] = model
             return model
         else:
             model = None
@@ -451,7 +465,7 @@ class GatewayKernelManager(ServerKernelManager):
                 self.log.debug("Request kernel at: %s" % self.kernel_url)
                 try:
                     response = await gateway_request(self.kernel_url, method="GET")
-    
+                
                 except web.HTTPError as error:
                     if error.status_code == 404:
                         self.log.warning("Kernel not found at: %s" % self.kernel_url)
@@ -500,7 +514,7 @@ class GatewayKernelManager(ServerKernelManager):
             self.kernel_id = kernel_id
             self.kernel_url = url_path_join(self.kernels_url, url_escape(str(self.kernel_id)))
             self.kernel = await self.refresh_model()
-            return await super().start_kernel(**kwargs)
+            await super().start_kernel(**kwargs)
 
         if kernel_id is None:
             kernel_name = kwargs.get("kernel_name", "python3")
