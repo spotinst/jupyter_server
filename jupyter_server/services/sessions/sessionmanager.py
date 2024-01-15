@@ -446,7 +446,7 @@ class SessionManager(LoggingConfigurable):
                     raise TypeError(msg)
                 conditions.append("%s=?" % column)
     
-                query = "SELECT * FROM session WHERE %s" % (" AND ".join(conditions))
+            query = "SELECT * FROM session WHERE %s" % (" AND ".join(conditions))
     
             self.cursor.execute(query, list(kwargs.values()))
             try:
