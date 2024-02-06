@@ -81,11 +81,17 @@ class GatewayMappingKernelManager(AsyncMappingKernelManager):
             kwargs["kernel_name"] = "python3"
             kwargs["local"] = True
             env = kwargs["env"]
-            app = kernel_name[3:]
-            startup_file = f"/tmp/{app}.py"
             if kernel_name.startswith('sc-'):
-                startup_content = f"""from pyspark.sql import SparkSession
+                app = kernel_name
+                startup_file = f"/tmp/{app}.py"
+                if os.getenv("CHOWN_HOME", "false") == "True":
+                    startup_content = f"""from pyspark.sql import SparkSession
 spark = SparkSession.builder.appName('{kernel_name}').remote('sc://{app}.spark-apps.svc.cluster.local').getOrCreate()
+"""
+                else:
+                    app_short = app[0:-28]
+                    startup_content = f"""from ocean_spark_connect.ocean_spark_session import OceanSparkSession
+spark = OceanSparkSession.Builder().cluster_id("osc-739db584").appid("{app_short}").profile("default").getOrCreate()
 """
                 env["PYTHONSTARTUP"] = startup_file
                 with open(startup_file, "w") as f:
