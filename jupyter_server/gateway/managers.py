@@ -84,7 +84,7 @@ class GatewayMappingKernelManager(AsyncMappingKernelManager):
             if kernel_name.startswith('sc-'):
                 app = kernel_name
                 startup_file = f"/tmp/{app}.py"
-                if os.getenv("CHOWN_HOME", "false") == "True":
+                if os.getenv("CHOWN_HOME", "no") == "yes":
                     startup_content = f"""from pyspark.sql import SparkSession
 spark = SparkSession.builder.appName('{kernel_name}').remote('sc://{app}.spark-apps.svc.cluster.local').getOrCreate()
 """
