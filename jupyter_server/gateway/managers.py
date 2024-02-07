@@ -86,10 +86,10 @@ class GatewayMappingKernelManager(AsyncMappingKernelManager):
                 startup_file = f"/tmp/{app}.py"
                 if os.getenv("CHOWN_HOME", "no") == "yes":
                     startup_content = f"""from pyspark.sql import SparkSession
-spark = SparkSession.builder.appName('{kernel_name}').remote('sc://{app}.spark-apps.svc.cluster.local').getOrCreate()
+spark = SparkSession.builder.appName('{kernel_name}').remote('sc://{app}-driver-svc.spark-apps.svc.cluster.local').getOrCreate()
 """
                 else:
-                    app_short = app[0:-28]
+                    app_short = app[0:-17]
                     startup_content = f"""from ocean_spark_connect.ocean_spark_session import OceanSparkSession
 spark = OceanSparkSession.Builder().cluster_id("osc-739db584").appid("{app_short}").profile("default").getOrCreate()
 """
