@@ -2,6 +2,7 @@
 
 Preliminary documentation at https://github.com/ipython/ipython/wiki/IPEP-27%3A-Contents-Service
 """
+
 # Copyright (c) Jupyter Development Team.
 # Distributed under the terms of the Modified BSD License.
 import json
@@ -16,7 +17,7 @@ except ImportError:
 from jupyter_core.utils import ensure_async
 from tornado import web
 
-from jupyter_server.auth.decorator import authorized
+from jupyter_server.auth.decorator import allow_unauthenticated, authorized
 from jupyter_server.base.handlers import APIHandler, JupyterHandler, path_regex
 from jupyter_server.utils import url_escape, url_path_join
 
@@ -139,7 +140,9 @@ class ContentsHandler(ContentsAPIHandler):
 
         hash_str = self.get_query_argument("hash", default="0")
         if hash_str not in {"0", "1"}:
-            raise web.HTTPError(400, f"Content {hash_str!r} is invalid")
+            raise web.HTTPError(
+                400, f"Hash argument {hash_str!r} is invalid. It must be '0' or '1'."
+            )
         require_hash = int(hash_str)
 
         if not cm.allow_hidden and await ensure_async(cm.is_hidden(path)):
@@ -400,6 +403,7 @@ class NotebooksRedirectHandler(JupyterHandler):
         "DELETE",
     )  # type:ignore[assignment]
 
+    @allow_unauthenticated
     def get(self, path):
         """Handle a notebooks redirect."""
         self.log.warning("/api/notebooks is deprecated, use /api/contents")

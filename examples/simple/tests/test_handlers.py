@@ -1,8 +1,9 @@
 """Tests for the simple handler."""
+
 import pytest
 
 
-@pytest.fixture()
+@pytest.fixture
 def jp_server_auth_resources(jp_server_auth_core_resources):
     """The server auth resources."""
     for url_regex in [
@@ -12,7 +13,7 @@ def jp_server_auth_resources(jp_server_auth_core_resources):
     return jp_server_auth_core_resources
 
 
-@pytest.fixture()
+@pytest.fixture
 def jp_server_config(jp_template_dir, jp_server_authorizer):
     """The server config."""
     return {

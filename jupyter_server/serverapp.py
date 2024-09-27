@@ -1,4 +1,5 @@
 """A tornado based Jupyter server."""
+
 # Copyright (c) Jupyter Development Team.
 # Distributed under the terms of the Modified BSD License.
 from __future__ import annotations
@@ -42,9 +43,18 @@ from tornado import httpserver, ioloop, web
 from tornado.httputil import url_concat
 from tornado.log import LogFormatter, access_log, app_log, gen_log
 from tornado.netutil import bind_sockets
+from tornado.routing import Matcher, Rule
 
 if not sys.platform.startswith("win"):
     from tornado.netutil import bind_unix_socket
+
+if sys.platform.startswith("win"):
+    try:
+        import colorama
+
+        colorama.init()
+    except ImportError:
+        pass
 
 from traitlets import (
     Any,
@@ -116,6 +126,7 @@ from jupyter_server.services.kernels.kernelmanager import (
 )
 from jupyter_server.services.sessions.sessionmanager import SessionManager
 from jupyter_server.utils import (
+    JupyterServerAuthWarning,
     check_pid,
     fetch,
     unix_socket_in_use,
@@ -204,7 +215,7 @@ def random_ports(port: int, n: int) -> t.Generator[int, None, None]:
     for i in range(min(5, n)):
         yield port + i
     for _ in range(n - 5):
-        yield max(1, port + random.randint(-2 * n, 2 * n))
+        yield max(1, port + random.randint(-2 * n, 2 * n))  # noqa: S311
 
 
 def load_handlers(name: str) -> t.Any:
@@ -242,6 +253,8 @@ class ServerWebApplication(web.Application):
         identity_provider=None,
         kernel_websocket_connection_class=None,
         local_kernel_websocket_connection_class=None,
+        websocket_ping_interval=None,
+        websocket_ping_timeout=None,
     ):
         if os.getenv("PYDEVD_PYCHARM", "False") == "True":
             warnings.warn(
@@ -265,7 +278,7 @@ class ServerWebApplication(web.Application):
             warnings.warn(
                 "authorizer unspecified. Using permissive AllowAllAuthorizer."
                 " Specify an authorizer to avoid this message.",
-                RuntimeWarning,
+                JupyterServerAuthWarning,
                 stacklevel=2,
             )
             authorizer = AllowAllAuthorizer(parent=jupyter_app, identity_provider=identity_provider)
@@ -288,10 +301,53 @@ class ServerWebApplication(web.Application):
             identity_provider=identity_provider,
             kernel_websocket_connection_class=kernel_websocket_connection_class,
             local_kernel_websocket_connection_class=local_kernel_websocket_connection_class,
+            websocket_ping_interval=websocket_ping_interval,
+            websocket_ping_timeout=websocket_ping_timeout,
         )
         handlers = self.init_handlers(default_services, settings)
 
+        undecorated_methods = []
+        for matcher, handler, *_ in handlers:
+            undecorated_methods.extend(self._check_handler_auth(matcher, handler))
+
+        if undecorated_methods:
+            message = (
+                "Core endpoints without @allow_unauthenticated, @ws_authenticated, nor @web.authenticated:\n"
+                + "\n".join(undecorated_methods)
+            )
+            if jupyter_app.allow_unauthenticated_access:
+                warnings.warn(
+                    message,
+                    JupyterServerAuthWarning,
+                    stacklevel=2,
+                )
+            else:
+                raise Exception(message)
+
         super().__init__(handlers, **settings)
+
+    def add_handlers(self, host_pattern, host_handlers):
+        undecorated_methods = []
+        for rule in host_handlers:
+            if isinstance(rule, Rule):
+                matcher = rule.matcher
+                handler = rule.target
+            else:
+                matcher, handler, *_ = rule
+            undecorated_methods.extend(self._check_handler_auth(matcher, handler))
+
+        if undecorated_methods and not self.settings["allow_unauthenticated_access"]:
+            message = (
+                "Extension endpoints without @allow_unauthenticated, @ws_authenticated, nor @web.authenticated:\n"
+                + "\n".join(undecorated_methods)
+            )
+            warnings.warn(
+                message,
+                JupyterServerAuthWarning,
+                stacklevel=2,
+            )
+
+        return super().add_handlers(host_pattern, host_handlers)
 
     def init_settings(
         self,
@@ -313,6 +369,8 @@ class ServerWebApplication(web.Application):
         identity_provider=None,
         kernel_websocket_connection_class=None,
         local_kernel_websocket_connection_class=None,
+        websocket_ping_interval=None,
+        websocket_ping_timeout=None,
     ):
         """Initialize settings for the web application."""
         _template_path = settings_overrides.get(
@@ -326,7 +384,7 @@ class ServerWebApplication(web.Application):
         jenv_opt: dict[str, t.Any] = {"autoescape": True}
         jenv_opt.update(jinja_env_options if jinja_env_options else {})
 
-        env = Environment(
+        env = Environment(  # noqa: S701
             loader=FileSystemLoader(template_path), extensions=["jinja2.ext.i18n"], **jenv_opt
         )
         sys_info = get_sys_info()
@@ -382,6 +440,7 @@ class ServerWebApplication(web.Application):
             "login_url": url_path_join(base_url, "/login"),
             "xsrf_cookies": True,
             "disable_check_xsrf": jupyter_app.disable_check_xsrf,
+            "allow_unauthenticated_access": jupyter_app.allow_unauthenticated_access,
             "allow_remote_access": jupyter_app.allow_remote_access,
             "local_hostnames": jupyter_app.local_hostnames,
             "authenticate_prometheus": jupyter_app.authenticate_prometheus,
@@ -396,6 +455,8 @@ class ServerWebApplication(web.Application):
             "event_logger": event_logger,
             "kernel_websocket_connection_class": kernel_websocket_connection_class,
             "local_kernel_websocket_connection_class": local_kernel_websocket_connection_class,
+            "websocket_ping_interval": websocket_ping_interval,
+            "websocket_ping_timeout": websocket_ping_timeout,
             # handlers
             "extra_services": extra_services,
             # Jupyter stuff
@@ -498,6 +559,40 @@ class ServerWebApplication(web.Application):
         )
         sources.extend(self.settings["last_activity_times"].values())
         return max(sources)
+
+    def _check_handler_auth(
+        self, matcher: t.Union[str, Matcher], handler: type[web.RequestHandler]
+    ):
+        missing_authentication = []
+        for method_name in handler.SUPPORTED_METHODS:
+            method = getattr(handler, method_name.lower())
+            is_unimplemented = method == web.RequestHandler._unimplemented_method
+            is_allowlisted = hasattr(method, "__allow_unauthenticated")
+            is_blocklisted = _has_tornado_web_authenticated(method)
+            if not is_unimplemented and not is_allowlisted and not is_blocklisted:
+                missing_authentication.append(
+                    f"- {method_name} of {handler.__name__} registered for {matcher}"
+                )
+        return missing_authentication
+
+
+def _has_tornado_web_authenticated(method: t.Callable[..., t.Any]) -> bool:
+    """Check if given method was decorated with @web.authenticated.
+
+    Note: it is ok if we reject on @authorized @web.authenticated
+    because the correct order is @web.authenticated @authorized.
+    """
+    if not hasattr(method, "__wrapped__"):
+        return False
+    if not hasattr(method, "__code__"):
+        return False
+    code = method.__code__
+    if hasattr(code, "co_qualname"):
+        # new in 3.11
+        return code.co_qualname.startswith("authenticated")  # type:ignore[no-any-return]
+    elif hasattr(code, "co_filename"):
+        return code.co_filename.replace("\\", "/").endswith("tornado/web.py")
+    return False
 
 
 class JupyterPasswordApp(JupyterApp):
@@ -1057,8 +1152,9 @@ class ServerApp(JupyterApp):
         b"",
         config=True,
         help="""The random bytes used to secure cookies.
-        By default this is a new random number every time you start the server.
-        Set it to a value in a config file to enable logins to persist across server sessions.
+        By default this is generated on first start of the server and persisted across server
+        sessions by writing the cookie secret into the `cookie_secret_file` file.
+        When using an executable config file you can override this to be random at each server restart.
 
         Note: Cookie secrets should be kept private, do not share config files with
         cookie_secret stored in plaintext (you can read the value from a file).
@@ -1128,9 +1224,9 @@ class ServerApp(JupyterApp):
 
         soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
 
-        DEFAULT_SOFT = 4096
-        if hard >= DEFAULT_SOFT:
-            return DEFAULT_SOFT
+        default_soft = 4096
+        if hard >= default_soft:
+            return default_soft
 
         self.log.debug(
             "Default value for min_open_files_limit is ignored (hard=%r, soft=%r)",
@@ -1226,6 +1322,33 @@ class ServerApp(JupyterApp):
         with the full knowledge of what that implies.
         """,
     )
+
+    _allow_unauthenticated_access_env = "JUPYTER_SERVER_ALLOW_UNAUTHENTICATED_ACCESS"
+
+    allow_unauthenticated_access = Bool(
+        True,
+        config=True,
+        help=f"""Allow unauthenticated access to endpoints without authentication rule.
+
+        When set to `True` (default in jupyter-server 2.0, subject to change
+        in the future), any request to an endpoint without an authentication rule
+        (either `@tornado.web.authenticated`, or `@allow_unauthenticated`)
+        will be permitted, regardless of whether user has logged in or not.
+
+        When set to `False`, logging in will be required for access to each endpoint,
+        excluding the endpoints marked with `@allow_unauthenticated` decorator.
+
+        This option can be configured using `{_allow_unauthenticated_access_env}`
+        environment variable: any non-empty value other than "true" and "yes" will
+        prevent unauthenticated access to endpoints without `@allow_unauthenticated`.
+        """,
+    )
+
+    @default("allow_unauthenticated_access")
+    def _allow_unauthenticated_access_default(self):
+        if os.getenv(self._allow_unauthenticated_access_env):
+            return os.environ[self._allow_unauthenticated_access_env].lower() in ["true", "yes"]
+        return True
 
     allow_remote_access = Bool(
         config=True,
@@ -1540,6 +1663,32 @@ class ServerApp(JupyterApp):
     ) -> t.Union[str, type[ZMQChannelsWebsocketConnection]]:
         return ZMQChannelsWebsocketConnection
 
+    websocket_ping_interval = Integer(
+        config=True,
+        help="""
+            Configure the websocket ping interval in seconds.
+
+            Websockets are long-lived connections that are used by some Jupyter
+            Server extensions.
+
+            Periodic pings help to detect disconnected clients and keep the
+            connection active. If this is set to None, then no pings will be
+            performed.
+
+            When a ping is sent, the client has ``websocket_ping_timeout``
+            seconds to respond. If no response is received within this period,
+            the connection will be closed from the server side.
+        """,
+    )
+    websocket_ping_timeout = Integer(
+        config=True,
+        help="""
+            Configure the websocket ping timeout in seconds.
+
+            See ``websocket_ping_interval`` for details.
+        """,
+    )
+
     config_manager_class = Type(
         default_value=ConfigManager,
         config=True,
@@ -1731,7 +1880,9 @@ class ServerApp(JupyterApp):
 
     preferred_dir = Unicode(
         config=True,
-        help=trans.gettext("Preferred starting directory to use for notebooks and kernels."),
+        help=trans.gettext(
+            "Preferred starting directory to use for notebooks and kernels. ServerApp.preferred_dir is deprecated in jupyter-server 2.0. Use FileContentsManager.preferred_dir instead"
+        ),
     )
 
     @default("preferred_dir")
@@ -2064,9 +2215,9 @@ class ServerApp(JupyterApp):
 
         # deprecate accessing these directly, in favor of identity_provider?
         self.tornado_settings["cookie_options"] = self.identity_provider.cookie_options
-        self.tornado_settings[
-            "get_secure_cookie_kwargs"
-        ] = self.identity_provider.get_secure_cookie_kwargs
+        self.tornado_settings["get_secure_cookie_kwargs"] = (
+            self.identity_provider.get_secure_cookie_kwargs
+        )
         self.tornado_settings["token"] = self.identity_provider.token
 
         if self.static_immutable_cache:
@@ -2127,6 +2278,8 @@ class ServerApp(JupyterApp):
             identity_provider=self.identity_provider,
             kernel_websocket_connection_class=self.kernel_websocket_connection_class,
             local_kernel_websocket_connection_class=self.local_kernel_websocket_connection_class,
+            websocket_ping_interval=self.websocket_ping_interval,
+            websocket_ping_timeout=self.websocket_ping_timeout,
         )
         if self.certfile:
             self.ssl_options["certfile"] = self.certfile
@@ -2189,7 +2342,7 @@ class ServerApp(JupyterApp):
             if not self.ip:
                 ip = "localhost"
             # Handle nonexplicit hostname.
-            elif self.ip in ("0.0.0.0", "::"):
+            elif self.ip in ("0.0.0.0", "::"):  # noqa: S104
                 ip = "%s" % socket.gethostname()
             else:
                 ip = f"[{self.ip}]" if ":" in self.ip else self.ip
@@ -2294,7 +2447,7 @@ class ServerApp(JupyterApp):
         info(self.running_server_info())
         yes = _i18n("y")
         no = _i18n("n")
-        sys.stdout.write(_i18n("Shutdown this Jupyter server (%s/[%s])? ") % (yes, no))
+        sys.stdout.write(_i18n("Shut down this Jupyter server (%s/[%s])? ") % (yes, no))
         sys.stdout.flush()
         r, w, x = select.select([sys.stdin], [], [], 5)
         if r:
@@ -2597,7 +2750,11 @@ class ServerApp(JupyterApp):
         self._init_asyncio_patch()
         # Parse command line, load ServerApp config files,
         # and update ServerApp config.
+        # preserve jpserver_extensions, which may have been set by starter_extension
+        # don't let config clobber this value
+        jpserver_extensions = self.jpserver_extensions.copy()
         super().initialize(argv=argv)
+        self.jpserver_extensions.update(jpserver_extensions)
         if self._dispatching:
             return
         # initialize io loop as early as possible,
@@ -2912,9 +3069,9 @@ class ServerApp(JupyterApp):
                             "",
                             (
                                 "UNIX sockets are not browser-connectable, but you can tunnel to "
-                                "the instance via e.g.`ssh -L 8888:{} -N user@this_host` and then "
-                                "open e.g. {} in a browser."
-                            ).format(self.sock, self.connection_url),
+                                f"the instance via e.g.`ssh -L 8888:{self.sock} -N user@this_host` and then "
+                                f"open e.g. {self.connection_url} in a browser."
+                            ),
                         ]
                     )
                 )
