@@ -1226,18 +1226,6 @@ class PublicStaticFileHandler(web.StaticFileHandler):
         return super().get(path, include_body)
 
 
-class PublicStaticFileHandler(web.StaticFileHandler):
-    """Same as web.StaticFileHandler, but decorated to acknowledge that auth is not required."""
-
-    @allow_unauthenticated
-    def head(self, path: str) -> Awaitable[None]:
-        return super().head(path)
-
-    @allow_unauthenticated
-    def get(self, path: str, include_body: bool = True) -> Coroutine[Any, Any, None]:
-        return super().get(path, include_body)
-
-
 # -----------------------------------------------------------------------------
 # URL pattern fragments for reuse
 # -----------------------------------------------------------------------------
