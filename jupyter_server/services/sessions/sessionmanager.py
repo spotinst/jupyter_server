@@ -348,14 +348,31 @@ class SessionManager(LoggingConfigurable):
             the name of the kernel specification to use.  The default kernel name will be used if not provided.
         """
         # allow contents manager to specify kernels cwd
-        kernel_path = await ensure_async(self.contents_manager.get_kernel_path(path=path))
+        if self.fut_kernel_id_dict is not None:
+            if session_id in self.fut_kernel_id_dict:
+                fut_kernel_id = self.fut_kernel_id_dict[session_id]
+                if fut_kernel_id.done():
+                    kernel_id = await fut_kernel_id
+                    self.fut_kernel_id_dict.pop(session_id)
+                    return kernel_id
+            else:
+                kernel_path = await ensure_async(self.contents_manager.get_kernel_path(path=path))
+                kernel_env = self.get_kernel_env(path)
+                self.fut_kernel_id_dict[session_id] = asyncio.create_task(self.kernel_manager.start_kernel(
+                    path=kernel_path,
+                    kernel_name=kernel_name,
+                    env=kernel_env,
+                ))
+            kernel_id = "waiting"
+        else:
+            kernel_path = await ensure_async(self.contents_manager.get_kernel_path(path=path))
 
-        kernel_env = self.get_kernel_env(path, name)
-        kernel_id = await self.kernel_manager.start_kernel(
-            path=kernel_path,
-            kernel_name=kernel_name,
-            env=kernel_env,
-        )
+            kernel_env = self.get_kernel_env(path, name)
+            kernel_id = await self.kernel_manager.start_kernel(
+                path=kernel_path,
+                kernel_name=kernel_name,
+                env=kernel_env,
+            )
         return cast(str, kernel_id)
 
     async def save_session(self, session_id, path=None, name=None, type=None, kernel_id=None):
@@ -408,37 +425,48 @@ class SessionManager(LoggingConfigurable):
             returns a dictionary that includes all the information from the
             session described by the kwarg.
         """
-        if not kwargs:
-            msg = "must specify a column to query"
-            raise TypeError(msg)
-
-        conditions = []
-        for column in kwargs:
-            if column not in self._columns:
-                msg = f"No such column: {column}"
+        session_id = kwargs["session_id"]
+        if self.fut_kernel_id_dict is not None and session_id in self.fut_kernel_id_dict:
+            model = {
+                "id": session_id,
+                "name": "Waiting for kernel to start",
+                "last_activity": None,
+                "execution_state": "waiting",
+                "connections": 0,
+            }
+        else:
+            if not kwargs:
+                msg = "must specify a column to query"
                 raise TypeError(msg)
-            conditions.append("%s=?" % column)
-
-        query = "SELECT * FROM session WHERE %s" % (" AND ".join(conditions))  # noqa: S608
-
-        self.cursor.execute(query, list(kwargs.values()))
-        try:
-            row = self.cursor.fetchone()
-        except KeyError:
-            # The kernel is missing, so the session just got deleted.
-            row = None
-
-        if row is None:
-            q = []
-            for key, value in kwargs.items():
-                q.append(f"{key}={value!r}")
-
-            raise web.HTTPError(404, "Session not found: %s" % (", ".join(q)))
-
-        try:
-            model = await self.row_to_model(row)
-        except KeyError as e:
-            raise web.HTTPError(404, "Session not found: %s" % str(e)) from e
+    
+            conditions = []
+            for column in kwargs:
+                if column not in self._columns:
+                    msg = f"No such column: {column}"
+                    raise TypeError(msg)
+                conditions.append("%s=?" % column)
+    
+            query = "SELECT * FROM session WHERE %s" % (" AND ".join(conditions))  # noqa: S608
+    
+            self.cursor.execute(query, list(kwargs.values()))
+            try:
+                row = self.cursor.fetchone()
+            except KeyError:
+                # The kernel is missing, so the session just got deleted.
+                row = None
+    
+            if row is None:
+                q = []
+                for key, value in kwargs.items():
+                    q.append(f"{key}={value!r}")
+    
+                raise web.HTTPError(404, "Session not found: %s" % (", ".join(q)))
+    
+            try:
+                model = await self.row_to_model(row)
+            except KeyError as e:
+                raise web.HTTPError(404, "Session not found: %s" % str(e)) from e
+    
         return model
 
     async def update_session(self, session_id, **kwargs):
