@@ -75,7 +75,6 @@ class SessionRootHandler(SessionsAPIHandler):
 
         name = model.get("name", None)
         kernel = model.get("kernel", {})
-        session_id = model.get("id", None)
         kernel_name = kernel.get("name", None)
         kernel_id = kernel.get("id", None)
 
@@ -94,7 +93,6 @@ class SessionRootHandler(SessionsAPIHandler):
                     kernel_id=kernel_id,
                     name=name,
                     type=mtype,
-                    session_id=session_id,
                 )
             except NoSuchKernel:
                 msg = (

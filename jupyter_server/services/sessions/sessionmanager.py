@@ -5,7 +5,6 @@
 import os
 import pathlib
 import uuid
-from asyncio import Task
 from typing import Any, Dict, List, NewType, Optional, Union, cast
 
 KernelName = NewType("KernelName", str)
@@ -17,7 +16,6 @@ except ImportError:
     # fallback on pysqlite2 if Python was build without sqlite
     from pysqlite2 import dbapi2 as sqlite3  # type:ignore[no-redef]
 
-import asyncio
 from dataclasses import dataclass, fields
 
 from jupyter_core.utils import ensure_async
@@ -212,8 +210,6 @@ class SessionManager(LoggingConfigurable):
     _connection = None
     _columns = {"session_id", "path", "name", "type", "kernel_id"}
 
-    fut_kernel_id_dict: Optional[Dict[str, Task[str]]] = None
-
     @property
     def cursor(self):
         """Start a cursor and create a database called 'session'"""
@@ -271,7 +267,6 @@ class SessionManager(LoggingConfigurable):
         type: Optional[str] = None,
         kernel_name: Optional[KernelName] = None,
         kernel_id: Optional[str] = None,
-        session_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Creates a session and returns its model
 
@@ -281,13 +276,7 @@ class SessionManager(LoggingConfigurable):
             Usually the model name, like the filename associated with current
             kernel.
         """
-
-        if session_id is not None and self.fut_kernel_id_dict is None:
-            self.fut_kernel_id_dict = {}
-
-        if session_id is None or session_id == "":
-            session_id = self.new_session_id()
-        
+        session_id = self.new_session_id()
         record = KernelSessionRecord(session_id=session_id)
         self._pending_sessions.update(record)
         if kernel_id is not None and kernel_id in self.kernel_manager:
@@ -348,31 +337,14 @@ class SessionManager(LoggingConfigurable):
             the name of the kernel specification to use.  The default kernel name will be used if not provided.
         """
         # allow contents manager to specify kernels cwd
-        if self.fut_kernel_id_dict is not None:
-            if session_id in self.fut_kernel_id_dict:
-                fut_kernel_id = self.fut_kernel_id_dict[session_id]
-                if fut_kernel_id.done():
-                    kernel_id = await fut_kernel_id
-                    self.fut_kernel_id_dict.pop(session_id)
-                    return kernel_id
-            else:
-                kernel_path = await ensure_async(self.contents_manager.get_kernel_path(path=path))
-                kernel_env = self.get_kernel_env(path)
-                self.fut_kernel_id_dict[session_id] = asyncio.create_task(self.kernel_manager.start_kernel(
-                    path=kernel_path,
-                    kernel_name=kernel_name,
-                    env=kernel_env,
-                ))
-            kernel_id = "waiting"
-        else:
-            kernel_path = await ensure_async(self.contents_manager.get_kernel_path(path=path))
+        kernel_path = await ensure_async(self.contents_manager.get_kernel_path(path=path))
 
-            kernel_env = self.get_kernel_env(path, name)
-            kernel_id = await self.kernel_manager.start_kernel(
-                path=kernel_path,
-                kernel_name=kernel_name,
-                env=kernel_env,
-            )
+        kernel_env = self.get_kernel_env(path, name)
+        kernel_id = await self.kernel_manager.start_kernel(
+            path=kernel_path,
+            kernel_name=kernel_name,
+            env=kernel_env,
+        )
         return cast(str, kernel_id)
 
     async def save_session(self, session_id, path=None, name=None, type=None, kernel_id=None):
@@ -425,48 +397,37 @@ class SessionManager(LoggingConfigurable):
             returns a dictionary that includes all the information from the
             session described by the kwarg.
         """
-        session_id = kwargs["session_id"]
-        if self.fut_kernel_id_dict is not None and session_id in self.fut_kernel_id_dict:
-            model = {
-                "id": session_id,
-                "name": "Waiting for kernel to start",
-                "last_activity": None,
-                "execution_state": "waiting",
-                "connections": 0,
-            }
-        else:
-            if not kwargs:
-                msg = "must specify a column to query"
+        if not kwargs:
+            msg = "must specify a column to query"
+            raise TypeError(msg)
+
+        conditions = []
+        for column in kwargs:
+            if column not in self._columns:
+                msg = f"No such column: {column}"
                 raise TypeError(msg)
-    
-            conditions = []
-            for column in kwargs:
-                if column not in self._columns:
-                    msg = f"No such column: {column}"
-                    raise TypeError(msg)
-                conditions.append("%s=?" % column)
-    
-            query = "SELECT * FROM session WHERE %s" % (" AND ".join(conditions))  # noqa: S608
-    
-            self.cursor.execute(query, list(kwargs.values()))
-            try:
-                row = self.cursor.fetchone()
-            except KeyError:
-                # The kernel is missing, so the session just got deleted.
-                row = None
-    
-            if row is None:
-                q = []
-                for key, value in kwargs.items():
-                    q.append(f"{key}={value!r}")
-    
-                raise web.HTTPError(404, "Session not found: %s" % (", ".join(q)))
-    
-            try:
-                model = await self.row_to_model(row)
-            except KeyError as e:
-                raise web.HTTPError(404, "Session not found: %s" % str(e)) from e
-    
+            conditions.append("%s=?" % column)
+
+        query = "SELECT * FROM session WHERE %s" % (" AND ".join(conditions))  # noqa: S608
+
+        self.cursor.execute(query, list(kwargs.values()))
+        try:
+            row = self.cursor.fetchone()
+        except KeyError:
+            # The kernel is missing, so the session just got deleted.
+            row = None
+
+        if row is None:
+            q = []
+            for key, value in kwargs.items():
+                q.append(f"{key}={value!r}")
+
+            raise web.HTTPError(404, "Session not found: %s" % (", ".join(q)))
+
+        try:
+            model = await self.row_to_model(row)
+        except KeyError as e:
+            raise web.HTTPError(404, "Session not found: %s" % str(e)) from e
         return model
 
     async def update_session(self, session_id, **kwargs):
