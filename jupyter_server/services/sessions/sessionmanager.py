@@ -5,6 +5,7 @@
 import os
 import pathlib
 import uuid
+from asyncio import Task
 from typing import Any, Dict, List, NewType, Optional, Union, cast
 
 KernelName = NewType("KernelName", str)
@@ -16,6 +17,7 @@ except ImportError:
     # fallback on pysqlite2 if Python was build without sqlite
     from pysqlite2 import dbapi2 as sqlite3  # type:ignore[no-redef]
 
+import asyncio
 from dataclasses import dataclass, fields
 
 from jupyter_core.utils import ensure_async
@@ -210,6 +212,8 @@ class SessionManager(LoggingConfigurable):
     _connection = None
     _columns = {"session_id", "path", "name", "type", "kernel_id"}
 
+    fut_kernel_id_dict: Optional[Dict[str, Task[str]]] = None
+
     @property
     def cursor(self):
         """Start a cursor and create a database called 'session'"""
@@ -267,6 +271,7 @@ class SessionManager(LoggingConfigurable):
         type: Optional[str] = None,
         kernel_name: Optional[KernelName] = None,
         kernel_id: Optional[str] = None,
+        session_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Creates a session and returns its model
 
@@ -276,7 +281,13 @@ class SessionManager(LoggingConfigurable):
             Usually the model name, like the filename associated with current
             kernel.
         """
-        session_id = self.new_session_id()
+
+        if session_id is not None and self.fut_kernel_id_dict is None:
+            self.fut_kernel_id_dict = {}
+
+        if session_id is None or session_id == "":
+            session_id = self.new_session_id()
+        
         record = KernelSessionRecord(session_id=session_id)
         self._pending_sessions.update(record)
         if kernel_id is not None and kernel_id in self.kernel_manager:
