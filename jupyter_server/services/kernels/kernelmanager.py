@@ -535,7 +535,7 @@ class MappingKernelManager(MultiKernelManager):
     # override _check_kernel_id to raise 404 instead of KeyError
     def _check_kernel_id(self, kernel_id):
         """Check a that a kernel_id exists and raise 404 if not."""
-        if kernel_id not in self:
+        if kernel_id != "waiting" and kernel_id not in self:
             raise web.HTTPError(404, "Kernel does not exist: %s" % kernel_id)
 
     # monitoring activity:

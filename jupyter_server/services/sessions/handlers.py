@@ -8,6 +8,8 @@ Preliminary documentation at https://github.com/ipython/ipython/wiki/IPEP-16%3A-
 import asyncio
 import json
 
+from requests import session
+
 try:
     from jupyter_client.jsonutil import json_default
 except ImportError:
@@ -109,7 +111,10 @@ class SessionRootHandler(SessionsAPIHandler):
             except Exception as e:
                 raise web.HTTPError(500, str(e)) from e
 
-        location = url_path_join(self.base_url, "api", "sessions", s_model["id"])
+        if s_model is None:
+            location = url_path_join(self.base_url, "api", "sessions", session_id)
+        else:
+            location = url_path_join(self.base_url, "api", "sessions", s_model["id"])
         self.set_header("Location", location)
         self.set_status(201)
         self.finish(json.dumps(s_model, default=json_default))
@@ -175,14 +180,18 @@ class SessionHandler(SessionsAPIHandler):
         await sm.update_session(session_id, **changes)
         s_model = await sm.get_session(session_id=session_id)
 
-        if s_model["kernel"]["id"] != before["kernel"]["id"]:
-            # kernel_id changed because we got a new kernel
-            # shutdown the old one
-            fut = asyncio.ensure_future(ensure_async(km.shutdown_kernel(before["kernel"]["id"])))
-            # If we are not using pending kernels, wait for the kernel to shut down
-            if not getattr(km, "use_pending_kernels", None):
-                await fut
-        self.finish(json.dumps(s_model, default=json_default))
+        if 'kernel' in s_model:
+            before_id = before["kernel"]["id"]
+            if before_id != "waiting" and s_model["kernel"]["id"] != before_id:
+                # kernel_id changed because we got a new kernel
+                # shutdown the old one
+                fut = asyncio.ensure_future(ensure_async(km.shutdown_kernel(before_id)))
+                # If we are not using pending kernels, wait for the kernel to shut down
+                if not getattr(km, "use_pending_kernels", None):
+                    await fut
+            self.finish(json.dumps(s_model, default=json_default))
+        else:
+            self.finish(json.dumps(before, default=json_default))
 
     @web.authenticated
     @authorized
