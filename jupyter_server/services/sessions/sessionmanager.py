@@ -354,12 +354,23 @@ class SessionManager(LoggingConfigurable):
             if session_id in self.fut_kernel_id_dict:
                 fut_kernel_id = self.fut_kernel_id_dict[session_id]
                 if fut_kernel_id.done():
-                    kernel_id = await fut_kernel_id
-                    self.fut_kernel_id_dict.pop(session_id)
-                    return kernel_id
+                    try:
+                        kernel_id = await fut_kernel_id
+                        self.fut_kernel_id_dict.pop(session_id)
+                        return kernel_id
+                    except Exception as e:
+                        print(f"heeeeeeeeeeey starting kernel again!!!!!!!!!!!!!!!!!! ${path} ${kernel_name}")
+                        kernel_path = await ensure_async(self.contents_manager.get_kernel_path(path=path))
+                        kernel_env = self.get_kernel_env(path)
+                        self.fut_kernel_id_dict[session_id] = asyncio.create_task(self.kernel_manager.start_kernel(
+                            path=kernel_path,
+                            kernel_name=kernel_name,
+                            env=kernel_env,
+                        ))
             else:
                 kernel_path = await ensure_async(self.contents_manager.get_kernel_path(path=path))
                 kernel_env = self.get_kernel_env(path)
+                print(f"starting kernel!!!!!!!!!!!!!!!!!! ${path} ${kernel_name} ${kernel_path} ${kernel_env}")
                 self.fut_kernel_id_dict[session_id] = asyncio.create_task(self.kernel_manager.start_kernel(
                     path=kernel_path,
                     kernel_name=kernel_name,
@@ -402,11 +413,30 @@ class SessionManager(LoggingConfigurable):
         model : dict
             a dictionary of the session model
         """
-        self.cursor.execute(
-            "INSERT INTO session VALUES (?,?,?,?,?)",
-            (session_id, path, name, type, kernel_id),
-        )
-        result = await self.get_session(session_id=session_id)
+        if kernel_id != "waiting":
+            self.cursor.execute(
+                "INSERT INTO session VALUES (?,?,?,?,?)",
+                (session_id, path, name, type, kernel_id),
+            )
+            result = await self.get_session(session_id=session_id)
+        else:
+            result = {
+                "id": session_id,
+                "kernel": {
+                    "id": "waiting",
+                    "name": "Waiting for kernel to start",
+                    "last_activity": "2024-10-02T16:56:56.423328Z",
+                    "execution_state": "waiting",
+                    "connections": 0,
+                },
+                "path": path,
+                "type": type,
+                "name": name,
+                "notebook": {"path": path, "name": name},
+                "last_activity": "2024-10-02T16:56:56.423328Z",
+                "execution_state": "waiting",
+                "connections": 0
+            }
         return result
 
     async def get_session(self, **kwargs):
