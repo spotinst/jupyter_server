@@ -66,11 +66,11 @@ master_doc = "index"
 
 # General information about the project.
 project = "Jupyter Server"
-copyright = "2020, Jupyter Team, https://jupyter.org"
+copyright = "2020, Jupyter Team, https://jupyter.org"  # noqa: A001
 author = "The Jupyter Team"
 
 # ghissue config
-github_project_url = "https://github.com/jupyter/jupyter_server"
+github_project_url = "https://github.com/jupyter-server/jupyter_server"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -150,7 +150,25 @@ html_logo = "_static/jupyter_server_logo.svg"
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
-html_theme_options = {"navigation_with_keys": False}
+html_theme_options = {
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/jupyter-server/jupyter_server",
+            "icon": "fab fa-github-square",
+        }
+    ],
+    "navigation_with_keys": False,
+    "use_edit_page_button": True,
+}
+
+# Output for github to be used in links
+html_context = {
+    "github_user": "jupyter-server",  # Username
+    "github_repo": "jupyter_server",  # Repo name
+    "github_version": "main",  # Version
+    "doc_path": "docs/source/",  # Path in the checkout to the docs root
+}
 
 # Add any paths that contain custom themes here, relative to this directory.
 # html_theme_path = []
