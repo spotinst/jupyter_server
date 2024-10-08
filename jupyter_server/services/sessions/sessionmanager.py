@@ -374,9 +374,9 @@ class SessionManager(LoggingConfigurable):
                         return kernel_id
                     except:
                         self.log.error(f"kernel start failed, retying ${path} ${kernel_name}")
-                        await start_kernel_async(path, kernel_name)
+                        await self.start_kernel_async(path, kernel_name)
             else:
-                await start_kernel_async(path, kernel_name)
+                await self.start_kernel_async(path, kernel_name)
             kernel_id = "waiting"
         else:
             kernel_path = await ensure_async(self.contents_manager.get_kernel_path(path=path))
@@ -409,7 +409,7 @@ class SessionManager(LoggingConfigurable):
     ) -> Dict[str, Any]:
         result = {
             "id": session_id,
-            "kernel": waiting_kernel(),
+            "kernel": self.waiting_kernel(),
             "path": path,
             "type": type,
             "name": name,
@@ -452,7 +452,7 @@ class SessionManager(LoggingConfigurable):
             )
             result = await self.get_session(session_id=session_id)
         else:
-            result = waiting_session(session_id, path, type, name)
+            result = self.waiting_session(session_id, path, type, name)
         return result
 
     async def get_session(self, **kwargs):
@@ -475,7 +475,7 @@ class SessionManager(LoggingConfigurable):
         """
         session_id = kwargs["session_id"]
         if self.fut_kernel_id_dict is not None and session_id in self.fut_kernel_id_dict:
-            model = waiting_session(session_id, "unknown", "notebook", "Waiting for kernel to start")
+            model = self.waiting_session(session_id, "unknown", "notebook", "Waiting for kernel to start")
         else:
             if not kwargs:
                 msg = "must specify a column to query"
@@ -561,7 +561,7 @@ class SessionManager(LoggingConfigurable):
             if tolerate_culled:
                 return None
             else:
-                kernel_model = waiting_kernel()
+                kernel_model = self.waiting_kernel()
         else:
             kernel_culled: bool = await ensure_async(self.kernel_culled(kernel_id))
             if kernel_culled:
