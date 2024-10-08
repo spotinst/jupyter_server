@@ -251,6 +251,7 @@ class ServerWebApplication(web.Application):
         authorizer=None,
         identity_provider=None,
         kernel_websocket_connection_class=None,
+        local_kernel_websocket_connection_class=None,
         websocket_ping_interval=None,
         websocket_ping_timeout=None,
     ):
@@ -290,6 +291,7 @@ class ServerWebApplication(web.Application):
             authorizer=authorizer,
             identity_provider=identity_provider,
             kernel_websocket_connection_class=kernel_websocket_connection_class,
+            local_kernel_websocket_connection_class=local_kernel_websocket_connection_class,
             websocket_ping_interval=websocket_ping_interval,
             websocket_ping_timeout=websocket_ping_timeout,
         )
@@ -357,6 +359,7 @@ class ServerWebApplication(web.Application):
         authorizer=None,
         identity_provider=None,
         kernel_websocket_connection_class=None,
+        local_kernel_websocket_connection_class=None,
         websocket_ping_interval=None,
         websocket_ping_timeout=None,
     ):
@@ -442,6 +445,7 @@ class ServerWebApplication(web.Application):
             "identity_provider": identity_provider,
             "event_logger": event_logger,
             "kernel_websocket_connection_class": kernel_websocket_connection_class,
+            "local_kernel_websocket_connection_class": local_kernel_websocket_connection_class,
             "websocket_ping_interval": websocket_ping_interval,
             "websocket_ping_timeout": websocket_ping_timeout,
             # handlers
@@ -1630,12 +1634,24 @@ class ServerApp(JupyterApp):
         help=_i18n("The kernel websocket connection class to use."),
     )
 
+    local_kernel_websocket_connection_class = Type(
+        klass=BaseKernelWebsocketConnection,
+        config=True,
+        help=_i18n("The local kernel websocket connection class to use."),
+    )
+
     @default("kernel_websocket_connection_class")
     def _default_kernel_websocket_connection_class(
         self,
     ) -> t.Union[str, type[ZMQChannelsWebsocketConnection]]:
         if self.gateway_config.gateway_enabled:
             return "jupyter_server.gateway.connections.GatewayWebSocketConnection"
+        return ZMQChannelsWebsocketConnection
+
+    @default("local_kernel_websocket_connection_class")
+    def _default_local_kernel_websocket_connection_class(
+        self,
+    ) -> t.Union[str, type[ZMQChannelsWebsocketConnection]]:
         return ZMQChannelsWebsocketConnection
 
     websocket_ping_interval = Integer(
@@ -2252,6 +2268,7 @@ class ServerApp(JupyterApp):
             authorizer=self.authorizer,
             identity_provider=self.identity_provider,
             kernel_websocket_connection_class=self.kernel_websocket_connection_class,
+            local_kernel_websocket_connection_class=self.local_kernel_websocket_connection_class,
             websocket_ping_interval=self.websocket_ping_interval,
             websocket_ping_timeout=self.websocket_ping_timeout,
         )
@@ -2724,7 +2741,11 @@ class ServerApp(JupyterApp):
         self._init_asyncio_patch()
         # Parse command line, load ServerApp config files,
         # and update ServerApp config.
+        # preserve jpserver_extensions, which may have been set by starter_extension
+        # don't let config clobber this value
+        jpserver_extensions = self.jpserver_extensions.copy()
         super().initialize(argv=argv)
+        self.jpserver_extensions.update(jpserver_extensions)
         if self._dispatching:
             return
         # initialize io loop as early as possible,

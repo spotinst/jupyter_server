@@ -11,7 +11,10 @@ import json
 import mimetypes
 import os
 import re
+import sys
 import types
+import typing as ty
+import logging
 import warnings
 from http.client import responses
 from logging import Logger
@@ -61,6 +64,7 @@ if TYPE_CHECKING:
 # -----------------------------------------------------------------------------
 
 _sys_info_cache = None
+_my_globals = "myglobals"
 
 
 def json_sys_info():
@@ -79,8 +83,35 @@ def log() -> Logger:
         return app_log
 
 
+def get_token_value(request: ty.Any, prev: str) -> str:
+    header = "Authorization"
+    if header not in request.headers:
+        logging.error(f'Header "{header}" is missing')
+        return prev
+    logging.debug(f'Getting value from header "{header}"')
+    auth_header_value: str = request.headers[header]
+    if len(auth_header_value) == 0:
+        logging.error(f'Header "{header}" is empty')
+        return prev
+
+    try:
+        logging.info(f"Auth header value: {auth_header_value}")
+        # We expect the header value to be of the form "Bearer: XXX"
+        return auth_header_value.split(" ", maxsplit=1)[1]
+    except Exception as e:
+        logging.error(f"Could not read token from auth header: {str(e)}")
+
+    return prev
+
+
 class AuthenticatedHandler(web.RequestHandler):
     """A RequestHandler with an authenticated user."""
+
+    def prepare(self):
+        if _my_globals not in sys.modules:
+            sys.modules[_my_globals] = types.ModuleType(_my_globals)
+        prevtoken = sys.modules[_my_globals].token if hasattr(sys.modules[_my_globals], "token") else ""
+        sys.modules[_my_globals].token = get_token_value(self.request, prevtoken)
 
     @property
     def base_url(self) -> str:
@@ -1175,6 +1206,13 @@ class PrometheusMetricsHandler(JupyterHandler):
         self.set_header("Content-Type", prometheus_client.CONTENT_TYPE_LATEST)
         self.write(prometheus_client.generate_latest(prometheus_client.REGISTRY))
 
+def get_current_token():
+    """
+    Get :class:`tornado.httputil.HTTPServerRequest` that is currently being processed.
+    """
+    if _my_globals in sys.modules and hasattr(sys.modules[_my_globals], "token"):
+        return sys.modules[_my_globals].token
+    return ""
 
 class PublicStaticFileHandler(web.StaticFileHandler):
     """Same as web.StaticFileHandler, but decorated to acknowledge that auth is not required."""
