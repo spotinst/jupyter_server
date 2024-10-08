@@ -1,4 +1,5 @@
 """Kernel gateway managers."""
+
 # Copyright (c) Jupyter Development Team.
 # Distributed under the terms of the Modified BSD License.
 from __future__ import annotations
@@ -7,11 +8,10 @@ import asyncio
 import datetime
 import json
 import os
-from logging import Logger
 from queue import Empty, Queue
 from threading import Thread
 from time import monotonic
-from typing import Any, Optional, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 import websocket
 from jupyter_client.asynchronous.client import AsyncKernelClient
@@ -33,7 +33,9 @@ from ..services.sessions.sessionmanager import SessionManager
 from ..utils import url_path_join
 from .gateway_client import GatewayClient, gateway_request
 
-_local_kernels: dict[str, ServerKernelManager] = {}
+if TYPE_CHECKING:
+    from logging import Logger
+
 
 class GatewayMappingKernelManager(AsyncMappingKernelManager):
     """Kernel manager that supports remote kernels hosted by Jupyter Kernel or Enterprise Gateway."""
@@ -76,44 +78,20 @@ class GatewayMappingKernelManager(AsyncMappingKernelManager):
             The API path (unicode, '/' delimited) for the cwd.
             Will be transformed to an OS path relative to root_dir.
         """
-        kernel_name = kwargs.get("kernel_name")
-        if kernel_name == 'python3' or kernel_name.startswith('sc-'):
-            kwargs["kernel_name"] = "python3"
-            kwargs["local"] = True
-            env = kwargs["env"]
-            if kernel_name.startswith('sc-'):
-                app = kernel_name
-                startup_file = f"/tmp/{app}.py"
-                if os.getenv("CHOWN_HOME", "no") == "yes":
-                    startup_content = f"""from pyspark.sql import SparkSession
-spark = SparkSession.builder.appName('{kernel_name}').remote('sc://{app}-driver-svc.spark-apps.svc.cluster.local').getOrCreate()
-"""
-                else:
-                    app_short = app[0:-17]
-                    startup_content = f"""from ocean_spark_connect.ocean_spark_session import OceanSparkSession
-spark = OceanSparkSession.Builder().cluster_id("osc-739db584").appid("{app_short}").profile("default").getOrCreate()
-"""
-                env["PYTHONSTARTUP"] = startup_file
-                with open(startup_file, "w") as f:
-                    f.write(startup_content)
-            kernel_id = await super().start_kernel(kernel_id=kernel_id, path=path, **kwargs)
-            _local_kernels[kernel_id] = self._kernels[kernel_id]
-            return kernel_id
-        else:
-            self.log.info(f"Request start kernel: kernel_id={kernel_id}, path='{path}'")
-            
-            if kernel_id is None and path is not None:
-                kwargs["cwd"] = self.cwd_for_path(path)
-            
-            km = self.kernel_manager_factory(parent=self, log=self.log)
-            await km.start_kernel(kernel_id=kernel_id, **kwargs)
-            kernel_id = km.kernel_id
-            self._kernels[kernel_id] = km
-            # Initialize culling if not already
-            if not self._initialized_culler:
-                self.initialize_culler()
+        self.log.info(f"Request start kernel: kernel_id={kernel_id}, path='{path}'")
 
-            return kernel_id
+        if kernel_id is None and path is not None:
+            kwargs["cwd"] = self.cwd_for_path(path)
+
+        km = self.kernel_manager_factory(parent=self, log=self.log)
+        await km.start_kernel(kernel_id=kernel_id, **kwargs)
+        kernel_id = km.kernel_id
+        self._kernels[kernel_id] = km
+        # Initialize culling if not already
+        if not self._initialized_culler:
+            self.initialize_culler()
+
+        return kernel_id
 
     async def kernel_model(self, kernel_id):
         """Return a dictionary of kernel information described in the
@@ -124,17 +102,11 @@ spark = OceanSparkSession.Builder().cluster_id("osc-739db584").appid("{app_short
         kernel_id : uuid
             The uuid of the kernel.
         """
-        if kernel_id in _local_kernels:
-            str_kernel_id = str(kernel_id)
-            model = super().kernel_model(kernel_id)
-            _local_kernels[str_kernel_id] = model
-            return model
-        else:
-            model = None
-            km = self.get_kernel(str(kernel_id))
-            if km:  # type:ignore[truthy-bool]
-                model = km.kernel  # type:ignore[attr-defined]
-            return model
+        model = None
+        km = self.get_kernel(str(kernel_id))
+        if km:  # type:ignore[truthy-bool]
+            model = km.kernel  # type:ignore[attr-defined]
+        return model
 
     async def list_kernels(self, **kwargs):
         """Get a list of running kernels from the Gateway server.
@@ -156,7 +128,7 @@ spark = OceanSparkSession.Builder().cluster_id("osc-739db584").appid("{app_short
         # Remove any of our kernels that may have been culled on the gateway server
         our_kernels = self._kernels.copy()
         culled_ids = []
-        for kid, _ in our_kernels.items():
+        for kid in our_kernels:
             if kid not in kernel_models:
                 # The upstream kernel was not reported in the list of kernels.
                 self.log.warning(
@@ -261,7 +233,7 @@ class GatewayKernelSpecManager(KernelSpecManager):
         """Get the endpoint for a user filter."""
         kernel_user = os.environ.get("KERNEL_USERNAME")
         if kernel_user:
-            return "?user=".join([default_endpoint, kernel_user])
+            return f"{default_endpoint}?user={kernel_user}"
         return default_endpoint
 
     def _replace_path_kernelspec_resources(self, kernel_specs):
@@ -465,22 +437,19 @@ class GatewayKernelManager(ServerKernelManager):
             model is fetched from the Gateway server.
         """
         if model is None:
-            if self.kernel_id in _local_kernels:
-                model = _local_kernels[self.kernel_id]
-            else:
-                self.log.debug("Request kernel at: %s" % self.kernel_url)
-                try:
-                    response = await gateway_request(self.kernel_url, method="GET")
-                
-                except web.HTTPError as error:
-                    if error.status_code == 404:
-                        self.log.warning("Kernel not found at: %s" % self.kernel_url)
-                        model = None
-                    else:
-                        raise
+            self.log.debug("Request kernel at: %s" % self.kernel_url)
+            try:
+                response = await gateway_request(self.kernel_url, method="GET")
+
+            except web.HTTPError as error:
+                if error.status_code == 404:
+                    self.log.warning("Kernel not found at: %s" % self.kernel_url)
+                    model = None
                 else:
-                    model = json_decode(response.body)
-                self.log.debug("Kernel retrieved: %s" % model)
+                    raise
+            else:
+                model = json_decode(response.body)
+            self.log.debug("Kernel retrieved: %s" % model)
 
         if model:  # Update activity markers
             self.last_activity = datetime.datetime.strptime(
@@ -514,13 +483,6 @@ class GatewayKernelManager(ServerKernelManager):
              and launching the kernel (e.g. Popen kwargs).
         """
         kernel_id = kwargs.get("kernel_id")
-
-        if "local" in kwargs:
-            kwargs.pop("local")
-            self.kernel_id = kernel_id
-            self.kernel_url = url_path_join(self.kernels_url, url_escape(str(self.kernel_id)))
-            self.kernel = await self.refresh_model()
-            await super().start_kernel(**kwargs)
 
         if kernel_id is None:
             kernel_name = kwargs.get("kernel_name", "python3")
@@ -712,9 +674,7 @@ class ChannelQueue(Queue):  # type:ignore[type-arg]
                 return
             if len(msgs):
                 self.log.warning(
-                    "Stopping channel '{}' with {} unprocessed non-status messages: {}.".format(
-                        self.channel_name, len(msgs), msgs
-                    )
+                    f"Stopping channel '{self.channel_name}' with {len(msgs)} unprocessed non-status messages: {msgs}."
                 )
 
     def is_alive(self) -> bool:

@@ -1,4 +1,5 @@
 """Test GatewayClient"""
+
 import asyncio
 import json
 import logging
@@ -199,6 +200,7 @@ async def mock_gateway_request(url, **kwargs):
 
 
 mocked_gateway = patch("jupyter_server.gateway.managers.gateway_request", mock_gateway_request)
+mock_gateway_ws_url = "ws://mock-gateway-server:8889"
 mock_gateway_url = "http://mock-gateway-server:8889"
 mock_http_user = "alice"
 
@@ -227,14 +229,14 @@ class CustomTestTokenRenewer(GatewayTokenRenewerBase):  # type:ignore[misc]
         return f"{self.config_var_2}{self.config_var_1}"
 
 
-@pytest.fixture()
+@pytest.fixture
 def jp_server_config():
     return Config(
         {"CustomTestTokenRenewer": {"config_var_1": 42, "config_var_2": "Use this token value: "}}
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def init_gateway(monkeypatch):
     """Initializes the server for use as a gateway client."""
     # Clear the singleton first since previous tests may not have used a gateway.
@@ -719,6 +721,41 @@ async def test_websocket_connection_closed(init_gateway, jp_serverapp, jp_fetch,
         conn = GatewayWebSocketConnection(parent=km, websocket_handler=handler)
         handler.connection = conn
         await conn.connect()
+
+        # Processing websocket messages happens in separate coroutines and any
+        # errors in that process will show up in logs, but not bubble up to the
+        # caller.
+        #
+        # To check for these, we wait for the server to stop and then check the
+        # logs for errors.
+        await jp_serverapp._cleanup()
+        for _, level, message in caplog.record_tuples:
+            if level >= logging.ERROR:
+                pytest.fail(f"Logs contain an error: {message}")
+
+
+@patch("tornado.websocket.websocket_connect", mock_websocket_connect())
+async def test_websocket_connection_with_session_id(init_gateway, jp_serverapp, jp_fetch, caplog):
+    # Create the session and kernel and get the kernel manager...
+    kernel_id = await create_kernel(jp_fetch, "kspec_foo")
+    km: GatewayKernelManager = jp_serverapp.kernel_manager.get_kernel(kernel_id)
+
+    # Create the KernelWebsocketHandler...
+    request = HTTPServerRequest("foo", "GET")
+    request.connection = MagicMock()
+    handler = KernelWebsocketHandler(jp_serverapp.web_app, request)
+    # Create the GatewayWebSocketConnection and attach it to the handler...
+    with mocked_gateway:
+        conn = GatewayWebSocketConnection(parent=km, websocket_handler=handler)
+        handler.connection = conn
+        await conn.connect()
+        assert conn.session_id != None
+        expected_ws_url = (
+            f"{mock_gateway_ws_url}/api/kernels/{kernel_id}/channels?session_id={conn.session_id}"
+        )
+        assert (
+            expected_ws_url in caplog.text
+        ), "WebSocket URL does not contain the expected session_id."
 
         # Processing websocket messages happens in separate coroutines and any
         # errors in that process will show up in logs, but not bubble up to the
