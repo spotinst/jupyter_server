@@ -402,10 +402,10 @@ class SessionManager(LoggingConfigurable):
     
     def waiting_session(
         self, 
-        session_id: string,
-        path: string,
-        type: string,
-        name: string,
+        session_id: str,
+        path: str,
+        type: str,
+        name: str,
     ) -> Dict[str, Any]:
         result = {
             "id": session_id,
