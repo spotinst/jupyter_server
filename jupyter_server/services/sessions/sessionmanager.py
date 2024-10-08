@@ -327,6 +327,7 @@ class SessionManager(LoggingConfigurable):
 
     async def start_kernel_async(
         self, 
+        session_id: str,
         path: Optional[str], 
         kernel_name: Optional[KernelName],
     ):
@@ -374,9 +375,9 @@ class SessionManager(LoggingConfigurable):
                         return kernel_id
                     except:
                         self.log.error(f"kernel start failed, retying ${path} ${kernel_name}")
-                        await self.start_kernel_async(path, kernel_name)
+                        await self.start_kernel_async(session_id, path, kernel_name)
             else:
-                await self.start_kernel_async(path, kernel_name)
+                await self.start_kernel_async(session_id, path, kernel_name)
             kernel_id = "waiting"
         else:
             kernel_path = await ensure_async(self.contents_manager.get_kernel_path(path=path))
