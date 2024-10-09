@@ -232,11 +232,7 @@ class MappingKernelManager(MultiKernelManager):
                 kwargs["kernel_id"] = kernel_id
             kernel_id = await self.pinned_superclass._async_start_kernel(self, **kwargs)
             self._kernel_connections[kernel_id] = 0
-            task = asyncio.create_task(self._finish_kernel_start(kernel_id))
-            if not getattr(self, "use_pending_kernels", None):
-                await task
-            else:
-                self._pending_kernel_tasks[kernel_id] = task
+
             # add busy/activity markers:
             kernel = self.get_kernel(kernel_id)
             kernel.execution_state = "starting"  # type:ignore[attr-defined]
@@ -249,6 +245,12 @@ class MappingKernelManager(MultiKernelManager):
             env = kwargs.get("env", None)
             if env and isinstance(env, dict):  # type:ignore[unreachable]
                 self.log.debug("Kernel argument 'env' passed with: %r", list(env.keys()))  # type:ignore[unreachable]
+
+            task = asyncio.create_task(self._finish_kernel_start(kernel_id))
+            if not getattr(self, "use_pending_kernels", None):
+                await task
+            else:
+                self._pending_kernel_tasks[kernel_id] = task
 
             # Increase the metric of number of kernels running
             # for the relevant kernel type by 1
@@ -533,7 +535,7 @@ class MappingKernelManager(MultiKernelManager):
     # override _check_kernel_id to raise 404 instead of KeyError
     def _check_kernel_id(self, kernel_id):
         """Check a that a kernel_id exists and raise 404 if not."""
-        if kernel_id not in self:
+        if kernel_id != "waiting" and kernel_id not in self:
             raise web.HTTPError(404, "Kernel does not exist: %s" % kernel_id)
 
     # monitoring activity:

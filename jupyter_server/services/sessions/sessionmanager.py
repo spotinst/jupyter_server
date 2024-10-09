@@ -364,14 +364,19 @@ class SessionManager(LoggingConfigurable):
         kernel_name : str
             the name of the kernel specification to use.  The default kernel name will be used if not provided.
         """
+        
         # allow contents manager to specify kernels cwd
         if self.fut_kernel_id_dict is not None:
             if session_id in self.fut_kernel_id_dict:
                 fut_kernel_id = self.fut_kernel_id_dict[session_id]
                 if fut_kernel_id.done():
-                    kernel_id = await fut_kernel_id
-                    self.fut_kernel_id_dict.pop(session_id)
-                    return kernel_id
+                    try:
+                        kernel_id = await fut_kernel_id
+                        self.fut_kernel_id_dict.pop(session_id)
+                        return kernel_id
+                    except:
+                        self.log.error(f"kernel start failed, retying ${path} ${kernel_name}")
+                        await self.start_kernel_async(session_id, path, kernel_name)
             else:
                 await self.start_kernel_async(session_id, path, kernel_name)
             kernel_id = "waiting"
@@ -442,11 +447,14 @@ class SessionManager(LoggingConfigurable):
         model : dict
             a dictionary of the session model
         """
-        self.cursor.execute(
-            "INSERT INTO session VALUES (?,?,?,?,?)",
-            (session_id, path, name, type, kernel_id),
-        )
-        result = await self.get_session(session_id=session_id)
+        if kernel_id != "waiting":
+            self.cursor.execute(
+                "INSERT INTO session VALUES (?,?,?,?,?)",
+                (session_id, path, name, type, kernel_id),
+            )
+            result = await self.get_session(session_id=session_id)
+        else:
+            result = self.waiting_session(session_id, path, type, name)
         return result
 
     async def get_session(self, **kwargs):
@@ -538,8 +546,11 @@ class SessionManager(LoggingConfigurable):
             self.cursor.execute(
                 "SELECT path, name, kernel_id FROM session WHERE session_id=?", [session_id]
             )
-            path, name, kernel_id = self.cursor.fetchone()
-            self.kernel_manager.update_env(kernel_id=kernel_id, env=self.get_kernel_env(path, name))
+            try:
+                path, name, kernel_id = self.cursor.fetchone()
+                self.kernel_manager.update_env(kernel_id=kernel_id, env=self.get_kernel_env(path, name))
+            except TypeError:
+                self.kernel_manager.update_env(kernel_id="waiting", env=self.get_kernel_env("Untitled.ipynb", "Waiting for kernel"))
 
     async def kernel_culled(self, kernel_id: str) -> bool:
         """Checks if the kernel is still considered alive and returns true if its not found."""
@@ -547,28 +558,36 @@ class SessionManager(LoggingConfigurable):
 
     async def row_to_model(self, row, tolerate_culled=False):
         """Takes sqlite database session row and turns it into a dictionary"""
-        kernel_culled: bool = await ensure_async(self.kernel_culled(row["kernel_id"]))
-        if kernel_culled:
-            # The kernel was culled or died without deleting the session.
-            # We can't use delete_session here because that tries to find
-            # and shut down the kernel - so we'll delete the row directly.
-            #
-            # If caller wishes to tolerate culled kernels, log a warning
-            # and return None.  Otherwise, raise KeyError with a similar
-            # message.
-            self.cursor.execute("DELETE FROM session WHERE session_id=?", (row["session_id"],))
-            msg = (
-                "Kernel '{kernel_id}' appears to have been culled or died unexpectedly, "
-                "invalidating session '{session_id}'. The session has been removed.".format(
-                    kernel_id=row["kernel_id"], session_id=row["session_id"]
-                )
-            )
+        kernel_id = row["kernel_id"]
+        if kernel_id == "waiting":
             if tolerate_culled:
-                self.log.warning(f"{msg}  Continuing...")
                 return None
-            raise KeyError(msg)
+            else:
+                kernel_model = self.waiting_kernel()
+        else:
+            kernel_culled: bool = await ensure_async(self.kernel_culled(kernel_id))
+            if kernel_culled:
+                # The kernel was culled or died without deleting the session.
+                # We can't use delete_session here because that tries to find
+                # and shut down the kernel - so we'll delete the row directly.
+                #
+                # If caller wishes to tolerate culled kernels, log a warning
+                # and return None.  Otherwise, raise KeyError with a similar
+                # message.
+                self.cursor.execute("DELETE FROM session WHERE session_id=?", (row["session_id"],))
+                msg = (
+                    "Kernel '{kernel_id}' appears to have been culled or died unexpectedly, "
+                    "invalidating session '{session_id}'. The session has been removed.".format(
+                        kernel_id=row["kernel_id"], session_id=row["session_id"]
+                    )
+                )
+                if tolerate_culled:
+                    self.log.warning(f"{msg}  Continuing...")
+                    return None
+                raise KeyError(msg)
 
-        kernel_model = await ensure_async(self.kernel_manager.kernel_model(row["kernel_id"]))
+            kernel_model = await ensure_async(self.kernel_manager.kernel_model(kernel_id))
+
         model = {
             "id": row["session_id"],
             "path": row["path"],
@@ -591,7 +610,8 @@ class SessionManager(LoggingConfigurable):
         for row in c.fetchall():
             try:
                 model = await self.row_to_model(row)
-                result.append(model)
+                if model["kernel"]["id"] != "waiting":
+                    result.append(model)
             except KeyError:
                 pass
         return result
