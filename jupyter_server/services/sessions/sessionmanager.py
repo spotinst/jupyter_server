@@ -364,6 +364,7 @@ class SessionManager(LoggingConfigurable):
         kernel_name : str
             the name of the kernel specification to use.  The default kernel name will be used if not provided.
         """
+        
         # allow contents manager to specify kernels cwd
         if self.fut_kernel_id_dict is not None:
             if session_id in self.fut_kernel_id_dict:
